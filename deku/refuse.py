@@ -15,6 +15,7 @@ REASONS = (
     "chitchat",
     "deep_reasoning",
     "underspecified",
+    "age",
     "out_of_scope",
 )
 
@@ -38,6 +39,10 @@ MESSAGES = {
     "underspecified": (
         "I need an explicit file path (for example deku/route.py). "
         "I cannot resolve vague references like \"this part\"."
+    ),
+    "age": (
+        "I cannot compute ages. "
+        "Ask for a birth date instead (for example: What is Tim Cook's birthday?)."
     ),
     "out_of_scope": (
         "I cannot handle that request with the available tools. "
@@ -78,6 +83,7 @@ DEEP = re.compile(
     r"\b(discuss|argue|critique)\b.{20,}"
     r")"
 )
+AGE = re.compile(r"(?i)\bhow old\b")
 
 # Path-scoped git history without a concrete path (deixis or bare "that changed").
 _PATH_HISTORY = re.compile(
@@ -111,6 +117,8 @@ def classify(question: str) -> str:
         return "code"
     if CHITCHAT.search(q):
         return "chitchat"
+    if AGE.search(q):
+        return "age"
     if DEEP.search(q):
         return "deep_reasoning"
     if is_underspecified_path(q):
@@ -132,5 +140,6 @@ def is_hard_refuse(question: str) -> bool:
         MATH.search(q)
         or CODE.search(q)
         or CHITCHAT.search(q)
+        or AGE.search(q)
         or DEEP.search(q)
     )

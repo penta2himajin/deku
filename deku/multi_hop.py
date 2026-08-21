@@ -34,11 +34,54 @@ ANAPHORA_CUES = re.compile(
 IT_REF = re.compile(r"(?i)\b(it|its|this|that)\b")
 
 
+def has_concrete_topic(sub: str) -> bool:
+    """True when the clause already names its own subject entity."""
+    s = sub or ""
+    if re.search(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b", s):
+        return True
+    # "the iPhone", "the population of Tokyo", "of France"
+    if re.search(r"(?i)\b(?:of|for)\s+(?:the\s+)?[A-Z][A-Za-z0-9.-]+\b", s):
+        return True
+    if re.search(
+        r"(?i)\b(?:the\s+)?(iPhone|iPad|iPod|PlayStation|Xbox|Android)\b", s
+    ):
+        return True
+    if re.search(
+        r"^(?:when|where|what|who)\b.+\b(?:the\s+)?[A-Z][A-Za-z0-9.-]+\b",
+        s,
+        flags=re.I,
+    ) and re.search(r"\b[A-Z][A-Za-z0-9.-]+\b", s) and not IT_REF.search(s) and not PRONOUN.search(s):
+        # Require a true capitalised token (re.I alone would match "born").
+        caps = re.findall(r"\b[A-Z][A-Za-z0-9.-]+\b", s)
+        wh = re.findall(r"(?i)\b(?:when|where|what|who|the)\b", s)
+        if any(t.casefold() not in {w.casefold() for w in wh} for t in caps):
+            return True
+    return False
+
+
+def needs_prior(sub: str) -> bool:
+    """True when this hop likely refers to the previous answer's entity."""
+    s = sub or ""
+    if PRONOUN.search(s):
+        return True
+    if IT_REF.search(s) and ANAPHORA_CUES.search(s):
+        return True
+    if has_concrete_topic(s):
+        return False
+    # "Where was born?" is broken English; thin cue without a name.
+    if ANAPHORA_CUES.search(s) and not re.search(
+        r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b", s
+    ):
+        return True
+    return False
+
+
 def bind_core(prior_query: str, prior_core: str, followup: str) -> str:
     """Choose the entity to inject into a dependent follow-up.
 
-    Pronoun *he/she* usually want the prior answer (a person). *it* + founded /
-    released / headquarters usually want the org named in the prior question.
+    Pronoun *he/she* usually want the prior answer (a person). *it/its* + founded /
+    released / headquarters / population usually want the org/place named in the
+    prior question — never a bare numeric core.
     """
     fu = followup or ""
     core = (prior_core or "").strip()
@@ -53,10 +96,21 @@ def bind_core(prior_query: str, prior_core: str, followup: str) -> str:
             r"(?i)population of (.+?)\??\s*$",
             r"(?i)when (?:was|were) (?:the )?(.+?) released",
             r"(?i)where (?:is|are) (.+?) (?:headquartered|based)",
+            r"(?i)headquarters (?:city |of )?(.+?)\??\s*$",
         ):
             m = re.search(pat, prior_query or "")
             if m:
                 return m.group(1).strip().rstrip("?.")
+        # Never bind a numeric measurement into "its population/founded…".
+        if re.fullmatch(r"[\d.,]+(?:\s*(?:million|billion|thousand))?", core, flags=re.I):
+            return core  # still wrong; caller should not need_prior — defensive
+    if PRONOUN.search(fu):
+        # Prefer person-shaped prior core; strip template wrappers if present.
+        m = re.search(
+            r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", core
+        )
+        if m and not re.search(r"(?i)\b(million|billion|inc|corp)\b", m.group(1)):
+            return m.group(1)
     return core
 
 
@@ -119,21 +173,6 @@ def decompose(question: str) -> list[str]:
 def looks_multi_hop(question: str) -> bool:
     subs = decompose(question)
     return len(subs) >= 2
-
-
-def needs_prior(sub: str) -> bool:
-    """True when this hop likely refers to the previous answer's entity."""
-    s = sub or ""
-    if PRONOUN.search(s):
-        return True
-    if IT_REF.search(s) and ANAPHORA_CUES.search(s):
-        return True
-    # "Where was born?" is broken English; "where … born" without a name.
-    if ANAPHORA_CUES.search(s) and not re.search(
-        r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b", s
-    ):
-        return True
-    return False
 
 
 def rewrite_followup(sub: str, prior_core: str) -> str:

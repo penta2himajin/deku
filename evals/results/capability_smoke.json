@@ -2,9 +2,9 @@
   "backend": "gguf",
   "base_url": "http://127.0.0.1:8080",
   "model": "MiniCPM5-1B",
-  "when": "2026-08-21T09:51:34.237756+00:00",
-  "passed": 22,
-  "total": 22,
+  "when": "2026-08-21T11:11:14.775575+00:00",
+  "passed": 23,
+  "total": 23,
   "rows": [
     {
       "name": "refuse:math",
@@ -125,7 +125,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The CEO of Apple is Tim Cook.",
-      "elapsed_ms": 7961,
+      "elapsed_ms": 8078,
       "fail_reasons": [],
       "detail_keys": [
         "core",
@@ -136,6 +136,8 @@
         "raw_hits",
         "reply_source",
         "router",
+        "slot",
+        "slot_source",
         "summary",
         "top_score"
       ],
@@ -148,7 +150,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The capital of France is Paris.",
-      "elapsed_ms": 9702,
+      "elapsed_ms": 10027,
       "fail_reasons": [],
       "detail_keys": [
         "core",
@@ -158,6 +160,8 @@
         "raw_hits",
         "reply_source",
         "router",
+        "slot",
+        "slot_source",
         "summary",
         "top_score"
       ],
@@ -170,7 +174,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Apple Inc. is headquartered in Cupertino, California, in Silicon Valley.",
-      "elapsed_ms": 5629,
+      "elapsed_ms": 5971,
       "fail_reasons": [],
       "detail_keys": [
         "core",
@@ -181,6 +185,8 @@
         "raw_hits",
         "reply_source",
         "router",
+        "slot",
+        "slot_source",
         "summary",
         "top_score"
       ],
@@ -193,7 +199,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Tim Cook was born in Mobile, Alabama.",
-      "elapsed_ms": 6995,
+      "elapsed_ms": 7267,
       "fail_reasons": [],
       "detail_keys": [
         "core",
@@ -204,6 +210,8 @@
         "raw_hits",
         "reply_source",
         "router",
+        "slot",
+        "slot_source",
         "summary",
         "summary_rejected",
         "top_score"
@@ -217,7 +225,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The population of Tokyo is over 14 million as of 2023.",
-      "elapsed_ms": 6030,
+      "elapsed_ms": 6262,
       "fail_reasons": [],
       "detail_keys": [
         "core",
@@ -228,6 +236,8 @@
         "raw_hits",
         "reply_source",
         "router",
+        "slot",
+        "slot_source",
         "summary",
         "top_score"
       ],
@@ -240,7 +250,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The iPhone was released in January 9, 2007.",
-      "elapsed_ms": 4854,
+      "elapsed_ms": 5191,
       "fail_reasons": [],
       "detail_keys": [
         "core",
@@ -250,6 +260,8 @@
         "raw_hits",
         "reply_source",
         "router",
+        "slot",
+        "slot_source",
         "summary",
         "top_score"
       ],
@@ -262,7 +274,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Microsoft was founded in 1975.",
-      "elapsed_ms": 7201,
+      "elapsed_ms": 7428,
       "fail_reasons": [],
       "detail_keys": [
         "core",
@@ -273,7 +285,35 @@
         "raw_hits",
         "reply_source",
         "router",
+        "slot",
+        "slot_source",
         "summary",
+        "top_score"
+      ],
+      "reply_source": "source_sentence"
+    },
+    {
+      "name": "web:emperor_birthday",
+      "pass": true,
+      "tool": "web_search",
+      "status": "ok",
+      "reason": null,
+      "answer": "Naruhito (born 23 February 1960) is Emperor of Japan.",
+      "elapsed_ms": 18964,
+      "fail_reasons": [],
+      "detail_keys": [
+        "core",
+        "cue",
+        "doc_score",
+        "enriched",
+        "extract_status",
+        "raw_hits",
+        "reply_source",
+        "router",
+        "slot",
+        "slot_source",
+        "summary",
+        "summary_rejected",
         "top_score"
       ],
       "reply_source": "source_sentence"
@@ -285,7 +325,7 @@
       "status": "ok",
       "reason": null,
       "answer": "1. The CEO of Apple is Tim Cook.\n2. Paris is the capital of France, located on the Seine River in the Île-de-France region.",
-      "elapsed_ms": 17458,
+      "elapsed_ms": 18081,
       "fail_reasons": [],
       "detail_keys": [
         "cue",
@@ -305,7 +345,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Microsoft was founded by Bill Gates and Paul Allen. Microsoft was founded in 1975.",
-      "elapsed_ms": 15213,
+      "elapsed_ms": 15930,
       "fail_reasons": [],
       "detail_keys": [
         "cue",
@@ -325,7 +365,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The CEO of Apple is Tim Cook. Tim Cook was born in Mobile, Alabama.",
-      "elapsed_ms": 33184,
+      "elapsed_ms": 15418,
       "fail_reasons": [],
       "detail_keys": [
         "cue",
@@ -344,8 +384,8 @@
       "tool": "multi_hop",
       "status": "ok",
       "reason": null,
-      "answer": "1. The last commit message is \"docs: remove private research-repo references\".\n2. Kenya Nara (@penta2himajin) authored commit 982502a8ebaf (\"docs: remove private research-repo references\").",
-      "elapsed_ms": 76,
+      "answer": "1. The last commit message is \"feat: expand templates, clarify, multi-hop, and live capability smoke\".\n2. Kenya Nara (@penta2himajin) authored commit 46eae9aff824 (\"feat: expand templates, clarify, multi-hop, and live capability smoke\").",
+      "elapsed_ms": 106,
       "fail_reasons": [],
       "detail_keys": [
         "cue",
@@ -365,7 +405,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Humans landed the Moon on July 16, 1961, with one-fifth of the world's population. The US was engaged in the Cold War, and the Soviet Union had higher lift capacity. The speech was delivered at a football stadium in Houston. The Moon is a goal.",
-      "elapsed_ms": 3357,
+      "elapsed_ms": 7149,
       "fail_reasons": [],
       "detail_keys": [
         "cue",
@@ -385,8 +425,8 @@
       "tool": "git_search",
       "status": "ok",
       "reason": null,
-      "answer": "The last commit message is \"docs: remove private research-repo references\".",
-      "elapsed_ms": 54,
+      "answer": "The last commit message is \"feat: expand templates, clarify, multi-hop, and live capability smoke\".",
+      "elapsed_ms": 52,
       "fail_reasons": [],
       "detail_keys": [
         "cue",
@@ -403,7 +443,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The harness picks tools and builds evidence; MiniCPM only compresses or extracts short grounded spans.",
-      "elapsed_ms": 77,
+      "elapsed_ms": 59,
       "fail_reasons": [],
       "detail_keys": [
         "core",
@@ -428,7 +468,7 @@
       "status": "ok",
       "reason": null,
       "answer": "PREFILL is set to \"ANSWER: \".",
-      "elapsed_ms": 121,
+      "elapsed_ms": 98,
       "fail_reasons": [],
       "detail_keys": [
         "core",
@@ -582,6 +622,16 @@
       "expect_reason": null,
       "answer_must_match": "1975",
       "answer_must_not_match": null,
+      "detail_must_match": null
+    },
+    {
+      "name": "web:emperor_birthday",
+      "question": "What is the birthday of the current Emperor of Japan?",
+      "expect_tool": "web_search",
+      "expect_status": "ok",
+      "expect_reason": null,
+      "answer_must_match": "23 February 1960|February 23,?\\s*1960|1960",
+      "answer_must_not_match": "public holiday|cannot answer",
       "detail_must_match": null
     },
     {

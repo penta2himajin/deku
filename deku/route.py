@@ -256,6 +256,7 @@ def dispatch(
     root: str = ".",
     live_answer: bool = True,
     url_fetch=None,
+    use_needle_slots: bool = False,
 ) -> Routed:
     """Route then run the chosen tool (stubs for git/diff until implemented)."""
     dec = route(question, router=router)
@@ -312,7 +313,12 @@ def dispatch(
             out.status = "skipped_offline"
             out.detail["note"] = "web_search needs live_answer"
             return out
-        got = ws.run(question, router="rule", seed=seed)
+        got = ws.run(
+            question,
+            router="rule",
+            seed=seed,
+            use_needle_slots=use_needle_slots,
+        )
         out.status = got.status
         out.answer = got.answer
         out.query = got.query

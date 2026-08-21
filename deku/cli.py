@@ -17,6 +17,7 @@ def ask(
     seed: int = 0,
     live: bool = True,
     as_json: bool = False,
+    use_needle_slots: bool = False,
 ) -> int:
     got = rt.dispatch(
         question,
@@ -24,6 +25,7 @@ def ask(
         seed=seed,
         root=root,
         live_answer=live,
+        use_needle_slots=use_needle_slots,
     )
     if as_json:
         print(
@@ -45,7 +47,7 @@ def ask(
         if not text:
             text = f"[{got.status}] via {got.tool}"
         print(text)
-    return 0 if got.status in ("ok", "refused") else 1
+    return 0 if got.status in ("ok", "refused", "clarify") else 1
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -66,7 +68,15 @@ def main(argv: list[str] | None = None) -> None:
         "--router",
         default="rule",
         choices=("rule", "needle"),
-        help="Routing backend (needle needs the optional Needle package)",
+        help="Tool router (needle needs the optional Needle package)",
+    )
+    ask_p.add_argument(
+        "--needle-slots",
+        action="store_true",
+        help=(
+            "Optional: use Needle only to classify answer slot type "
+            "(date|place|person|…) when rules return none; never for answers"
+        ),
     )
     ask_p.add_argument("--seed", type=int, default=0)
     ask_p.add_argument(
@@ -90,6 +100,7 @@ def main(argv: list[str] | None = None) -> None:
                 seed=args.seed,
                 live=not args.no_live,
                 as_json=args.json,
+                use_needle_slots=args.needle_slots,
             )
         )
     p.error(f"unknown command {args.cmd}")

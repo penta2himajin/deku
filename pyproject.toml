@@ -32,6 +32,11 @@ dependencies = [
   "huggingface_hub>=0.26",
 ]
 
+[project.optional-dependencies]
+needle = [
+  "cactus-needle>=2.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/penta2himajin/deku"
 Documentation = "https://github.com/penta2himajin/deku#readme"

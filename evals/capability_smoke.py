@@ -148,6 +148,14 @@ CASES: list[Case] = [
         expect_status="ok",
         answer_must_match=r"1975",
     ),
+    Case(
+        "web:emperor_birthday",
+        "What is the birthday of the current Emperor of Japan?",
+        expect_tool="web_search",
+        expect_status="ok",
+        answer_must_match=r"23 February 1960|February 23,?\s*1960|1960",
+        answer_must_not_match=r"public holiday|cannot answer",
+    ),
     # ---- multi-hop catalog ------------------------------------------------
     Case(
         "hop:independent",
