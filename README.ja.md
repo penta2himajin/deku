@@ -1,0 +1,38 @@
+# deku
+
+> Source: README.md @ uncommitted
+>
+> [English](./README.md)
+
+**MiniCPM5-1B 向け**のローカル・タスク・ハーネス。短い事実タスク（Web 事実、URL 要約、リポ照会、git/diff、弱い多段プラン）をコード側で回し、範囲外は**理由付きで拒否**する。モデルは短い grounded 完了だけを担当する。
+
+> **現状:** リポジトリ立ち上げ直後。構成と serve 方針はここに記録済み。エージェント実装は  での試行から移植予定（実行時依存にはしない）。
+
+## 設計（1 ページ）
+
+| 層 | 責務 |
+| --- | --- |
+| **エージェント / ハーネス** | ルート、拒否、ツール、弱い多段、答の統合 |
+| **LLM クライアント** | OpenAI 互換 HTTP のみ |
+| **既定 serve** | 公式 **GGUF** + `llama-server` |
+
+HTTP の向こうの実装（llama.cpp / oMLX / 他）は**関知しない**。セマンティクスは MiniCPM5-1B 向け（英語前提、自由な長推理・コード生成はしない）。
+
+### 既定バックエンド（GGUF）
+
+- 重み: [`openbmb/MiniCPM5-1B-GGUF`](https://huggingface.co/openbmb/MiniCPM5-1B-GGUF)
+- 推奨量子化: **`MiniCPM5-1B-Q4_K_M.gguf`**
+- サーバ: `llama-server … --jinja`（OpenBMB の llama.cpp 手順に合わせる）
+
+詳細は [docs/architecture.md](./docs/architecture.md)、進め方は [docs/roadmap.md](./docs/roadmap.md)。
+
+## 非目標
+
+- 汎用コーディングエージェント / SWE-bench
+- モデルにプランを書かせる CoT
+- 日本語入力の公式サポート
+- 大きな研究用 eval 行列や MLX 変換スタックの持ち込み
+
+## ライセンス
+
+MIT（`LICENSE`）。モデル重みは Hugging Face 上の各ライセンスに従う。
