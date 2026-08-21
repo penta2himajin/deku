@@ -46,7 +46,7 @@ Measured: `mise run capability-smoke` → `evals/results/capability_smoke.json` 
 
 - [x] Host the repository (private or public) with a reproducible README path.
 
-**Done when:** external party can run the default path from the README alone.
+**Done when:** a newcomer can run the default path from the README alone.
 
 ## Explicit non-phases (defer)
 
