@@ -23,6 +23,22 @@ class TestSelectBuild(unittest.TestCase):
         self.assertEqual(plan.plan_id, "web_dependent")
         self.assertTrue(plan.steps[1].bind_prior)
 
+    def test_web_dependent_it_founded(self):
+        plan = orch.select_and_build(
+            "Who founded Microsoft and when was it founded?"
+        )
+        self.assertIsNotNone(plan)
+        self.assertEqual(plan.plan_id, "web_dependent")
+        self.assertTrue(plan.steps[1].bind_prior)
+
+    def test_git_pair(self):
+        plan = orch.select_and_build(
+            "What is the last commit message and who authored the last commit?"
+        )
+        self.assertIsNotNone(plan)
+        self.assertEqual(plan.plan_id, "git_pair")
+        self.assertEqual([s.tool for s in plan.steps], ["git_search", "git_search"])
+
     def test_dir_pair(self):
         plan = orch.select_and_build(
             "What is the PREFILL string and what is MAX_TOKENS?"

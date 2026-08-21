@@ -26,8 +26,38 @@ PRONOUN = re.compile(
 )
 # Follow-ups that usually need the prior entity even without a pronoun.
 ANAPHORA_CUES = re.compile(
-    r"(?i)\b(born|birthplace|age|nationality|founded|died|spouse|wife|husband)\b"
+    r"(?i)\b("
+    r"born|birthplace|age|nationality|founded|died|spouse|wife|husband|"
+    r"headquarters?|headquartered|based|population|released|release date"
+    r")\b"
 )
+IT_REF = re.compile(r"(?i)\b(it|its|this|that)\b")
+
+
+def bind_core(prior_query: str, prior_core: str, followup: str) -> str:
+    """Choose the entity to inject into a dependent follow-up.
+
+    Pronoun *he/she* usually want the prior answer (a person). *it* + founded /
+    released / headquarters usually want the org named in the prior question.
+    """
+    fu = followup or ""
+    core = (prior_core or "").strip()
+    if IT_REF.search(fu) and re.search(
+        r"(?i)\b(founded|released|headquarters?|headquartered|population|based)\b",
+        fu,
+    ):
+        for pat in (
+            r"(?i)who founded (.+?)\??\s*$",
+            r"(?i)(?:ceo|president|prime minister) of (.+?)\??\s*$",
+            r"(?i)capital of (.+?)\??\s*$",
+            r"(?i)population of (.+?)\??\s*$",
+            r"(?i)when (?:was|were) (?:the )?(.+?) released",
+            r"(?i)where (?:is|are) (.+?) (?:headquartered|based)",
+        ):
+            m = re.search(pat, prior_query or "")
+            if m:
+                return m.group(1).strip().rstrip("?.")
+    return core
 
 
 @dataclass
@@ -96,6 +126,8 @@ def needs_prior(sub: str) -> bool:
     s = sub or ""
     if PRONOUN.search(s):
         return True
+    if IT_REF.search(s) and ANAPHORA_CUES.search(s):
+        return True
     # "Where was born?" is broken English; "where … born" without a name.
     if ANAPHORA_CUES.search(s) and not re.search(
         r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b", s
@@ -120,6 +152,10 @@ def rewrite_followup(sub: str, prior_core: str) -> str:
         out = re.sub(
             r"\b(this person|that person)\b", core, out, count=1, flags=re.I
         )
+        return _normalize_sub(out)
+    if IT_REF.search(s) and ANAPHORA_CUES.search(s):
+        out = re.sub(r"\b(it|this|that)\b", core, s, count=1, flags=re.I)
+        out = re.sub(r"\b(its)\b", f"{core}'s", out, count=1, flags=re.I)
         return _normalize_sub(out)
     # No pronoun but anaphoric cue — insert the core after the wh-word.
     out = re.sub(

@@ -21,10 +21,12 @@ TOOLS = (
     "diff_search",
     "url_read",
     "multi_hop",
+    "clarify",
     "refuse",
 )
 TOOL_RE = re.compile(
-    r"(?i)\b(web_search|dir_search|git_search|diff_search|url_read|multi_hop|refuse)\b"
+    r"(?i)\b(web_search|dir_search|git_search|diff_search|url_read|"
+    r"multi_hop|clarify|refuse)\b"
 )
 
 NONSEARCH = ws.NONSEARCH
@@ -87,6 +89,13 @@ def hard_route(question: str) -> Decision | None:
     url = extract_url(q)
     if url:
         return Decision(tool="url_read", url=url, detail={"cue": "url"})
+    from deku import clarify as cl
+    clarify_kind = cl.detect(q)
+    if clarify_kind:
+        return Decision(
+            tool="clarify",
+            detail={"cue": "clarify", "reason": clarify_kind},
+        )
     if refuse_mod.is_hard_refuse(q) or NONSEARCH.search(q):
         reason = refuse_mod.classify(q)
         return Decision(
@@ -184,7 +193,7 @@ def needle_route(question: str) -> Decision:
         ...,
         description=(
             "web_search | dir_search | git_search | diff_search | url_read | "
-            "multi_hop | refuse"
+            "multi_hop | clarify | refuse"
         ),
     )):
         """Pick the retrieval tool.
@@ -194,6 +203,7 @@ def needle_route(question: str) -> Decision:
         diff_search = staged/unstaged/working-tree diffs.
         url_read = only when an http(s) URL is present (usually hard-cued).
         multi_hop = two short factual questions joined by and/?; else web_search.
+        clarify = missing file path or URL for an otherwise supported ask.
         refuse = math, code authoring, chitchat, long analysis.
         """
         return tool_name
@@ -205,6 +215,7 @@ def needle_route(question: str) -> Decision:
             "Local project/README/overview → dir_search. "
             "Public who/what/where facts → web_search. "
             "Two linked factual questions → multi_hop. "
+            "Vague 'this part' without a path, or summarize-this without a URL → clarify. "
             "Greeting, math, code, or long essay/analysis → refuse. "
             "Do not invent URLs or commit SHAs."
         ),
@@ -258,6 +269,13 @@ def dispatch(
         reason = dec.detail.get("reason") or refuse_mod.classify(question)
         out.status = "refused"
         out.answer = refuse_mod.message(reason)
+        out.detail["reason"] = reason
+        return out
+    if dec.tool == "clarify":
+        from deku import clarify as cl
+        reason = dec.detail.get("reason") or cl.detect(question) or "path"
+        out.status = "clarify"
+        out.answer = cl.question_for(question)
         out.detail["reason"] = reason
         return out
     if dec.tool == "url_read":

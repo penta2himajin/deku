@@ -68,12 +68,15 @@ class TestDispatchRefuse(unittest.TestCase):
         )
         self.assertEqual(got.tool, "refuse")
 
-    def test_this_part_git_refuses(self):
+    def test_this_part_git_clarifies(self):
         got = rt.rule_route(
             "Show me the commit log of the last commit that changed this part."
         )
-        self.assertEqual(got.tool, "refuse")
-        self.assertEqual(got.detail.get("reason"), "underspecified")
+        self.assertEqual(got.tool, "clarify")
+        self.assertEqual(got.detail.get("reason"), "path")
+        self.assertFalse(rf.is_hard_refuse(
+            "Show me the commit log of the last commit that changed this part."
+        ))
 
     def test_fix_bug_refuses(self):
         got = rt.rule_route("Fix the bug in route.py")

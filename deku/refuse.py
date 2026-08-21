@@ -123,12 +123,14 @@ def message(reason: str) -> str:
 
 
 def is_hard_refuse(question: str) -> bool:
-    """True when hard_route should pick refuse (math/code/chitchat/deep)."""
+    """True when hard_route should pick refuse (math/code/chitchat/deep).
+
+    Underspecified path asks go to clarify instead of refuse.
+    """
     q = question or ""
     return bool(
         MATH.search(q)
         or CODE.search(q)
         or CHITCHAT.search(q)
         or DEEP.search(q)
-        or is_underspecified_path(q)
     )

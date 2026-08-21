@@ -2,9 +2,9 @@
   "backend": "gguf",
   "base_url": "http://127.0.0.1:8080",
   "model": "MiniCPM5-1B",
-  "when": "2026-08-21T08:55:39.252804+00:00",
-  "passed": 11,
-  "total": 11,
+  "when": "2026-08-21T09:51:34.237756+00:00",
+  "passed": 22,
+  "total": 22,
   "rows": [
     {
       "name": "refuse:math",
@@ -19,7 +19,8 @@
         "cue",
         "reason",
         "router"
-      ]
+      ],
+      "reply_source": null
     },
     {
       "name": "refuse:code",
@@ -34,7 +35,8 @@
         "cue",
         "reason",
         "router"
-      ]
+      ],
+      "reply_source": null
     },
     {
       "name": "refuse:chitchat",
@@ -49,7 +51,8 @@
         "cue",
         "reason",
         "router"
-      ]
+      ],
+      "reply_source": null
     },
     {
       "name": "refuse:deep",
@@ -64,7 +67,8 @@
         "cue",
         "reason",
         "router"
-      ]
+      ],
+      "reply_source": null
     },
     {
       "name": "refuse:fix_bug",
@@ -79,16 +83,49 @@
         "cue",
         "reason",
         "router"
-      ]
+      ],
+      "reply_source": null
     },
     {
-      "name": "control:apple_ceo",
+      "name": "clarify:path",
+      "pass": true,
+      "tool": "clarify",
+      "status": "clarify",
+      "reason": "path",
+      "answer": "Which file path should I look at? For example: deku/route.py",
+      "elapsed_ms": 0,
+      "fail_reasons": [],
+      "detail_keys": [
+        "cue",
+        "reason",
+        "router"
+      ],
+      "reply_source": null
+    },
+    {
+      "name": "clarify:url",
+      "pass": true,
+      "tool": "clarify",
+      "status": "clarify",
+      "reason": "url",
+      "answer": "Which URL should I read? Please include a full http(s) link.",
+      "elapsed_ms": 0,
+      "fail_reasons": [],
+      "detail_keys": [
+        "cue",
+        "reason",
+        "router"
+      ],
+      "reply_source": null
+    },
+    {
+      "name": "web:apple_ceo",
       "pass": true,
       "tool": "web_search",
       "status": "ok",
       "reason": null,
       "answer": "The CEO of Apple is Tim Cook.",
-      "elapsed_ms": 8115,
+      "elapsed_ms": 7961,
       "fail_reasons": [],
       "detail_keys": [
         "core",
@@ -101,16 +138,17 @@
         "router",
         "summary",
         "top_score"
-      ]
+      ],
+      "reply_source": "summary"
     },
     {
-      "name": "control:france_capital",
+      "name": "web:france_capital",
       "pass": true,
       "tool": "web_search",
       "status": "ok",
       "reason": null,
       "answer": "The capital of France is Paris.",
-      "elapsed_ms": 9614,
+      "elapsed_ms": 9702,
       "fail_reasons": [],
       "detail_keys": [
         "core",
@@ -122,16 +160,212 @@
         "router",
         "summary",
         "top_score"
-      ]
+      ],
+      "reply_source": "summary"
     },
     {
-      "name": "sum:url_apollo",
+      "name": "web:apple_hq",
+      "pass": true,
+      "tool": "web_search",
+      "status": "ok",
+      "reason": null,
+      "answer": "Apple Inc. is headquartered in Cupertino, California, in Silicon Valley.",
+      "elapsed_ms": 5629,
+      "fail_reasons": [],
+      "detail_keys": [
+        "core",
+        "cue",
+        "doc_score",
+        "enriched",
+        "extract_status",
+        "raw_hits",
+        "reply_source",
+        "router",
+        "summary",
+        "top_score"
+      ],
+      "reply_source": "summary"
+    },
+    {
+      "name": "web:cook_born",
+      "pass": true,
+      "tool": "web_search",
+      "status": "ok",
+      "reason": null,
+      "answer": "Tim Cook was born in Mobile, Alabama.",
+      "elapsed_ms": 6995,
+      "fail_reasons": [],
+      "detail_keys": [
+        "core",
+        "cue",
+        "doc_score",
+        "enriched",
+        "extract_status",
+        "raw_hits",
+        "reply_source",
+        "router",
+        "summary",
+        "summary_rejected",
+        "top_score"
+      ],
+      "reply_source": "source_sentence"
+    },
+    {
+      "name": "web:tokyo_population",
+      "pass": true,
+      "tool": "web_search",
+      "status": "ok",
+      "reason": null,
+      "answer": "The population of Tokyo is over 14 million as of 2023.",
+      "elapsed_ms": 6030,
+      "fail_reasons": [],
+      "detail_keys": [
+        "core",
+        "cue",
+        "doc_score",
+        "enriched",
+        "extract_status",
+        "raw_hits",
+        "reply_source",
+        "router",
+        "summary",
+        "top_score"
+      ],
+      "reply_source": "summary"
+    },
+    {
+      "name": "web:iphone_released",
+      "pass": true,
+      "tool": "web_search",
+      "status": "ok",
+      "reason": null,
+      "answer": "The iPhone was released in January 9, 2007.",
+      "elapsed_ms": 4854,
+      "fail_reasons": [],
+      "detail_keys": [
+        "core",
+        "cue",
+        "doc_score",
+        "extract_status",
+        "raw_hits",
+        "reply_source",
+        "router",
+        "summary",
+        "top_score"
+      ],
+      "reply_source": "source_sentence"
+    },
+    {
+      "name": "web:microsoft_founded_year",
+      "pass": true,
+      "tool": "web_search",
+      "status": "ok",
+      "reason": null,
+      "answer": "Microsoft was founded in 1975.",
+      "elapsed_ms": 7201,
+      "fail_reasons": [],
+      "detail_keys": [
+        "core",
+        "cue",
+        "doc_score",
+        "enriched",
+        "extract_status",
+        "raw_hits",
+        "reply_source",
+        "router",
+        "summary",
+        "top_score"
+      ],
+      "reply_source": "source_sentence"
+    },
+    {
+      "name": "hop:independent",
+      "pass": true,
+      "tool": "multi_hop",
+      "status": "ok",
+      "reason": null,
+      "answer": "1. The CEO of Apple is Tim Cook.\n2. Paris is the capital of France, located on the Seine River in the Île-de-France region.",
+      "elapsed_ms": 17458,
+      "fail_reasons": [],
+      "detail_keys": [
+        "cue",
+        "dependent",
+        "mode",
+        "plan_id",
+        "rewritten",
+        "router",
+        "steps"
+      ],
+      "reply_source": "orchestrate"
+    },
+    {
+      "name": "hop:dependent_founded",
+      "pass": true,
+      "tool": "multi_hop",
+      "status": "ok",
+      "reason": null,
+      "answer": "Microsoft was founded by Bill Gates and Paul Allen. Microsoft was founded in 1975.",
+      "elapsed_ms": 15213,
+      "fail_reasons": [],
+      "detail_keys": [
+        "cue",
+        "dependent",
+        "mode",
+        "plan_id",
+        "rewritten",
+        "router",
+        "steps"
+      ],
+      "reply_source": "orchestrate"
+    },
+    {
+      "name": "hop:dependent_born",
+      "pass": true,
+      "tool": "multi_hop",
+      "status": "ok",
+      "reason": null,
+      "answer": "The CEO of Apple is Tim Cook. Tim Cook was born in Mobile, Alabama.",
+      "elapsed_ms": 33184,
+      "fail_reasons": [],
+      "detail_keys": [
+        "cue",
+        "dependent",
+        "mode",
+        "plan_id",
+        "rewritten",
+        "router",
+        "steps"
+      ],
+      "reply_source": "orchestrate"
+    },
+    {
+      "name": "hop:git_pair",
+      "pass": true,
+      "tool": "multi_hop",
+      "status": "ok",
+      "reason": null,
+      "answer": "1. The last commit message is \"docs: remove private research-repo references\".\n2. Kenya Nara (@penta2himajin) authored commit 982502a8ebaf (\"docs: remove private research-repo references\").",
+      "elapsed_ms": 76,
+      "fail_reasons": [],
+      "detail_keys": [
+        "cue",
+        "dependent",
+        "mode",
+        "plan_id",
+        "rewritten",
+        "router",
+        "steps"
+      ],
+      "reply_source": "orchestrate"
+    },
+    {
+      "name": "url:apollo_summary",
       "pass": true,
       "tool": "url_read",
       "status": "ok",
       "reason": null,
       "answer": "Humans landed the Moon on July 16, 1961, with one-fifth of the world's population. The US was engaged in the Cold War, and the Soviet Union had higher lift capacity. The speech was delivered at a football stadium in Houston. The Moon is a goal.",
-      "elapsed_ms": 3424,
+      "elapsed_ms": 3357,
       "fail_reasons": [],
       "detail_keys": [
         "cue",
@@ -142,26 +376,8 @@
         "reduce_0",
         "reduce_1",
         "router"
-      ]
-    },
-    {
-      "name": "hop:cook_paris",
-      "pass": true,
-      "tool": "multi_hop",
-      "status": "ok",
-      "reason": null,
-      "answer": "1. The CEO of Apple is Tim Cook.\n2. Paris is the capital of France, located on the Seine River in the Île-de-France region.",
-      "elapsed_ms": 17696,
-      "fail_reasons": [],
-      "detail_keys": [
-        "cue",
-        "dependent",
-        "mode",
-        "plan_id",
-        "rewritten",
-        "router",
-        "steps"
-      ]
+      ],
+      "reply_source": "hier_summary"
     },
     {
       "name": "git:last_commit",
@@ -169,24 +385,25 @@
       "tool": "git_search",
       "status": "ok",
       "reason": null,
-      "answer": "The last commit message is \"feat: port agent core whitelist and deku ask CLI\".",
-      "elapsed_ms": 42,
+      "answer": "The last commit message is \"docs: remove private research-repo references\".",
+      "elapsed_ms": 54,
       "fail_reasons": [],
       "detail_keys": [
         "cue",
         "reply_source",
         "root",
         "router"
-      ]
+      ],
+      "reply_source": "lexical"
     },
     {
-      "name": "dir:project",
+      "name": "dir:project_overview",
       "pass": true,
       "tool": "dir_search",
       "status": "ok",
       "reason": null,
-      "answer": "Ask (with server up for live MiniCPM answers; refuse / some lexical paths work offline):",
-      "elapsed_ms": 240,
+      "answer": "The harness picks tools and builds evidence; MiniCPM only compresses or extracts short grounded spans.",
+      "elapsed_ms": 77,
       "fail_reasons": [],
       "detail_keys": [
         "core",
@@ -199,10 +416,31 @@
         "reply_source",
         "root",
         "router",
-        "summary",
-        "summary_rejected",
+        "summary_skipped",
         "top_score"
-      ]
+      ],
+      "reply_source": "prose_lead"
+    },
+    {
+      "name": "dir:assignment",
+      "pass": true,
+      "tool": "dir_search",
+      "status": "ok",
+      "reason": null,
+      "answer": "PREFILL is set to \"ANSWER: \".",
+      "elapsed_ms": 121,
+      "fail_reasons": [],
+      "detail_keys": [
+        "core",
+        "cue",
+        "mode",
+        "raw_hits",
+        "reply_source",
+        "root",
+        "router",
+        "top_score"
+      ],
+      "reply_source": "assignment"
     }
   ],
   "cases": [
@@ -213,7 +451,8 @@
       "expect_status": "refused",
       "expect_reason": "math",
       "answer_must_match": null,
-      "answer_must_not_match": null
+      "answer_must_not_match": null,
+      "detail_must_match": null
     },
     {
       "name": "refuse:code",
@@ -222,7 +461,8 @@
       "expect_status": "refused",
       "expect_reason": "code",
       "answer_must_match": null,
-      "answer_must_not_match": null
+      "answer_must_not_match": null,
+      "detail_must_match": null
     },
     {
       "name": "refuse:chitchat",
@@ -231,7 +471,8 @@
       "expect_status": "refused",
       "expect_reason": "chitchat",
       "answer_must_match": null,
-      "answer_must_not_match": null
+      "answer_must_not_match": null,
+      "detail_must_match": null
     },
     {
       "name": "refuse:deep",
@@ -240,7 +481,8 @@
       "expect_status": "refused",
       "expect_reason": "deep_reasoning",
       "answer_must_match": null,
-      "answer_must_not_match": null
+      "answer_must_not_match": null,
+      "detail_must_match": null
     },
     {
       "name": "refuse:fix_bug",
@@ -249,43 +491,148 @@
       "expect_status": "refused",
       "expect_reason": "code",
       "answer_must_match": null,
-      "answer_must_not_match": null
+      "answer_must_not_match": null,
+      "detail_must_match": null
     },
     {
-      "name": "control:apple_ceo",
+      "name": "clarify:path",
+      "question": "Show me the commit log of the last commit that changed this part.",
+      "expect_tool": "clarify",
+      "expect_status": "clarify",
+      "expect_reason": "path",
+      "answer_must_match": "path|deku/",
+      "answer_must_not_match": null,
+      "detail_must_match": null
+    },
+    {
+      "name": "clarify:url",
+      "question": "Summarize this document for me.",
+      "expect_tool": "clarify",
+      "expect_status": "clarify",
+      "expect_reason": "url",
+      "answer_must_match": "url|http",
+      "answer_must_not_match": null,
+      "detail_must_match": null
+    },
+    {
+      "name": "web:apple_ceo",
       "question": "Who is the CEO of Apple?",
       "expect_tool": "web_search",
       "expect_status": "ok",
       "expect_reason": null,
       "answer_must_match": "Tim Cook",
-      "answer_must_not_match": null
+      "answer_must_not_match": null,
+      "detail_must_match": null
     },
     {
-      "name": "control:france_capital",
+      "name": "web:france_capital",
       "question": "What is the capital of France?",
       "expect_tool": "web_search",
       "expect_status": "ok",
       "expect_reason": null,
       "answer_must_match": "Paris",
-      "answer_must_not_match": null
+      "answer_must_not_match": null,
+      "detail_must_match": null
     },
     {
-      "name": "sum:url_apollo",
-      "question": "Summarize https://en.wikipedia.org/wiki/Apollo_11",
-      "expect_tool": "url_read",
+      "name": "web:apple_hq",
+      "question": "Where is Apple headquartered?",
+      "expect_tool": "web_search",
       "expect_status": "ok",
       "expect_reason": null,
-      "answer_must_match": "Apollo|Moon|NASA",
-      "answer_must_not_match": null
+      "answer_must_match": "Cupertino",
+      "answer_must_not_match": null,
+      "detail_must_match": null
     },
     {
-      "name": "hop:cook_paris",
+      "name": "web:cook_born",
+      "question": "Where was Tim Cook born?",
+      "expect_tool": "web_search",
+      "expect_status": "ok",
+      "expect_reason": null,
+      "answer_must_match": "Mobile|Alabama",
+      "answer_must_not_match": "born in Tim\\b",
+      "detail_must_match": null
+    },
+    {
+      "name": "web:tokyo_population",
+      "question": "What is the population of Tokyo?",
+      "expect_tool": "web_search",
+      "expect_status": "ok",
+      "expect_reason": null,
+      "answer_must_match": "million|\\d{1,3}(?:,\\d{3})+",
+      "answer_must_not_match": "population of Tokyo is The\\b",
+      "detail_must_match": null
+    },
+    {
+      "name": "web:iphone_released",
+      "question": "When was the iPhone released?",
+      "expect_tool": "web_search",
+      "expect_status": "ok",
+      "expect_reason": null,
+      "answer_must_match": "2007",
+      "answer_must_not_match": null,
+      "detail_must_match": null
+    },
+    {
+      "name": "web:microsoft_founded_year",
+      "question": "When was Microsoft founded?",
+      "expect_tool": "web_search",
+      "expect_status": "ok",
+      "expect_reason": null,
+      "answer_must_match": "1975",
+      "answer_must_not_match": null,
+      "detail_must_match": null
+    },
+    {
+      "name": "hop:independent",
       "question": "Who is the CEO of Apple and what is the capital of France?",
       "expect_tool": "multi_hop",
       "expect_status": "ok",
       "expect_reason": null,
       "answer_must_match": "(?s)Tim Cook.*Paris|Paris.*Tim Cook",
-      "answer_must_not_match": null
+      "answer_must_not_match": null,
+      "detail_must_match": null
+    },
+    {
+      "name": "hop:dependent_founded",
+      "question": "Who founded Microsoft and when was it founded?",
+      "expect_tool": "multi_hop",
+      "expect_status": "ok",
+      "expect_reason": null,
+      "answer_must_match": "(?s)(Gates|Allen).*(1975)|1975.*(Gates|Allen)",
+      "answer_must_not_match": null,
+      "detail_must_match": null
+    },
+    {
+      "name": "hop:dependent_born",
+      "question": "Who is the CEO of Apple and where was he born?",
+      "expect_tool": "multi_hop",
+      "expect_status": "ok",
+      "expect_reason": null,
+      "answer_must_match": "(?s)Tim Cook.*(Mobile|Alabama)|(Mobile|Alabama).*Tim Cook",
+      "answer_must_not_match": null,
+      "detail_must_match": null
+    },
+    {
+      "name": "hop:git_pair",
+      "question": "What is the last commit message and who authored the last commit?",
+      "expect_tool": "multi_hop",
+      "expect_status": "ok",
+      "expect_reason": null,
+      "answer_must_match": "(?s).+",
+      "answer_must_not_match": null,
+      "detail_must_match": "git_pair"
+    },
+    {
+      "name": "url:apollo_summary",
+      "question": "Summarize https://en.wikipedia.org/wiki/Apollo_11",
+      "expect_tool": "url_read",
+      "expect_status": "ok",
+      "expect_reason": null,
+      "answer_must_match": "Apollo|Moon|NASA",
+      "answer_must_not_match": null,
+      "detail_must_match": null
     },
     {
       "name": "git:last_commit",
@@ -294,16 +641,28 @@
       "expect_status": "ok",
       "expect_reason": null,
       "answer_must_match": ".+",
-      "answer_must_not_match": null
+      "answer_must_not_match": null,
+      "detail_must_match": null
     },
     {
-      "name": "dir:project",
+      "name": "dir:project_overview",
       "question": "What is this project about?",
       "expect_tool": "dir_search",
       "expect_status": "ok",
       "expect_reason": null,
       "answer_must_match": "deku|MiniCPM|harness|task",
-      "answer_must_not_match": null
+      "answer_must_not_match": null,
+      "detail_must_match": "prose_lead"
+    },
+    {
+      "name": "dir:assignment",
+      "question": "What is the PREFILL string?",
+      "expect_tool": "dir_search",
+      "expect_status": "ok",
+      "expect_reason": null,
+      "answer_must_match": "PREFILL|prefill|=",
+      "answer_must_not_match": null,
+      "detail_must_match": null
     }
   ]
 }

@@ -146,6 +146,20 @@ def build_dir_pair(question: str) -> Plan | None:
     return Plan(plan_id="dir_pair", steps=steps, dependent=False)
 
 
+def build_git_pair(question: str) -> Plan | None:
+    """Two independent git history questions joined by and."""
+    if not _looks_joined(question):
+        return None
+    clauses = _clauses(question)
+    if len(clauses) < 2:
+        return None
+    tools = [classify_clause(c) for c in clauses]
+    if not all(t == "git_search" for t in tools):
+        return None
+    steps = [Step(tool="git_search", query=c) for c in clauses[:3]]
+    return Plan(plan_id="git_pair", steps=steps, dependent=False)
+
+
 def build_web_pair(question: str) -> Plan | None:
     if not _looks_joined(question):
         return None
@@ -171,6 +185,7 @@ def build_web_pair(question: str) -> Plan | None:
 # First match wins — more specific patterns before generic web.
 BUILDERS: tuple[Callable[[str], Plan | None], ...] = (
     build_git_and_diff,
+    build_git_pair,
     build_dir_pair,
     build_web_pair,
 )
@@ -245,11 +260,13 @@ def run(
     docs: list[str] = []
     rewritten: list[str] = []
     prior_core: str | None = None
+    prior_query: str | None = None
     dependent = built.dependent
     for i, step in enumerate(built.steps):
         q = step.query
         if step.bind_prior and prior_core:
-            q = mh.rewrite_followup(q, prior_core)
+            bind = mh.bind_core(prior_query or "", prior_core, step.query)
+            q = mh.rewrite_followup(q, bind)
             dependent = True
         rewritten.append(q)
         got = _run_one(
@@ -270,6 +287,7 @@ def run(
             out.detail["dependent"] = dependent
             return out
         prior_core = mh.core_from_result(got) or prior_core
+        prior_query = q
         hops.append((q, got.answer.strip()))
     out.detail["rewritten"] = rewritten
     out.detail["dependent"] = dependent

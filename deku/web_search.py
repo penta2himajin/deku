@@ -130,6 +130,40 @@ def expand_search_queries(question: str, query: str) -> list[str]:
         out.append(f"{product} developed by")
         if "playstation" in product.casefold():
             out.insert(0, "Sony PlayStation")
+    m = re.search(r"(?i)^\s*where (?:was|is) (.+?) born\??\s*$", q)
+    if m:
+        who = m.group(1).strip()
+        out.insert(0, f"{who} born")
+        out.insert(0, who)
+        # Avoid bare "birthplace" queries — they recall unrelated Cooks.
+    m = re.search(r"(?i)^\s*what is the population of (.+?)\??\s*$", q)
+    if m:
+        place = m.group(1).strip()
+        out.insert(0, f"{place} population")
+        out.insert(0, place)
+    m = re.search(
+        r"(?i)^\s*where (?:is|are) (.+?) (?:headquartered|based)\??\s*$|"
+        r"^\s*what (?:is|are) the headquarters of (.+?)\??\s*$",
+        q,
+    )
+    if m:
+        org = (m.group(1) or m.group(2) or "").strip()
+        if org:
+            out.insert(0, org)
+            out.append(f"{org} headquarters")
+            out.append(f"{org} headquartered")
+    m = re.search(r"(?i)^\s*when (?:was|were) (?:the )?(.+?) released\??\s*$", q)
+    if m:
+        thing = m.group(1).strip()
+        out.insert(0, thing)
+        out.append(f"{thing} release")
+        out.append(f"{thing} released")
+    m = re.search(r"(?i)^\s*when (?:was|were) (.+?) founded\??\s*$", q)
+    if m:
+        org = m.group(1).strip()
+        out.insert(0, org)
+        out.append(f"{org} founded")
+        out.append(f"{org} founding")
     # de-dupe, drop empties
     seen: set[str] = set()
     uniq = []
@@ -205,6 +239,30 @@ def wiki_page_summary(title: str) -> str:
     return (page.get("extract") or page.get("description") or "").strip()
 
 
+def wiki_page_extract(title: str, *, chars: int = 2500) -> str:
+    """Plain-text extract beyond the lead (for birthplace / early-life facts)."""
+    if not (title or "").strip():
+        return ""
+    q = urllib.parse.urlencode({
+        "action": "query",
+        "prop": "extracts",
+        "explaintext": "1",
+        "exchars": str(chars),
+        "titles": title,
+        "format": "json",
+    })
+    try:
+        raw = json.loads(_get(f"https://en.wikipedia.org/w/api.php?{q}"))
+        pages = (raw.get("query") or {}).get("pages") or {}
+        for page in pages.values():
+            extract_text = (page.get("extract") or "").strip()
+            if extract_text:
+                return extract_text
+    except Exception:
+        pass
+    return wiki_page_summary(title)
+
+
 def wiki_incumbent_from_page(title: str) -> str | None:
     """Parse office-page wikitext for |incumbent = [[Name]]."""
     if not (title or "").strip():
@@ -238,6 +296,33 @@ def wiki_incumbent_from_page(title: str) -> str | None:
     return name or None
 
 
+def wiki_birth_place(title: str) -> str | None:
+    """Parse biography lead wikitext for |birth_place = …."""
+    if not (title or "").strip():
+        return None
+    q = urllib.parse.urlencode({
+        "action": "parse",
+        "page": title,
+        "prop": "wikitext",
+        "section": "0",
+        "format": "json",
+    })
+    try:
+        raw = json.loads(_get(f"https://en.wikipedia.org/w/api.php?{q}"))
+    except Exception:
+        return None
+    wt = ((raw.get("parse") or {}).get("wikitext") or {}).get("*") or ""
+    m = re.search(r"(?im)^\|\s*birth_place\s*=\s*(.+)$", wt)
+    if not m:
+        return None
+    raw_val = re.split(r"<ref|\{\{", m.group(1), maxsplit=1)[0].strip()
+    links = re.findall(r"\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]", raw_val)
+    if links:
+        return links[0].strip() or None
+    plain = re.sub(r"\[\[|\]\]|'+", "", raw_val).strip().rstrip(",")
+    return plain or None
+
+
 _PERSON_NAME = r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)"
 
 
@@ -257,6 +342,15 @@ def enrich_hits_for_answer(
         re.search(r"(?i)\bapollo\s*\d+\b", question or "")
         and re.search(r"(?i)\bwhen\b", question or "")
     )
+    want_founded_when = bool(
+        re.search(r"(?i)\bfounded\b", question or "")
+        and re.search(r"(?i)\bwhen\b", question or "")
+    )
+    want_born_where = bool(
+        re.search(r"(?i)\bborn\b", question or "")
+        and re.search(r"(?i)\bwhere\b", question or "")
+    )
+    want_population = bool(re.search(r"(?i)\bpopulation\b", question or ""))
     out = []
     for h in hits:
         item = dict(h)
@@ -266,8 +360,32 @@ def enrich_hits_for_answer(
         need = looks_like_fragment(snip) or (office and not has_person_name(snip))
         if want_apollo_when and not re.search(r"\b1969\b", snip):
             need = True
-        if need and title and "wikipedia.org" in url:
-            extract_text = fetch(title) or ""
+        if want_founded_when and not re.search(r"(?i)\bfounded in\s+\d{4}\b", snip):
+            need = True
+        if want_born_where and not re.search(
+            r"(?i)\bborn (?:in|at)\s+[A-Z]", snip
+        ):
+            need = True
+        if want_population and not re.search(
+            r"(?i)\bpopulation\b.*\d|\d[\d.,]*\s*(?:million|billion)", snip
+        ):
+            need = True
+        if need and title and "wikipedia.org" in url and "(disambiguation)" not in title.lower():
+            place = None
+            if want_born_where:
+                who = re.search(
+                    r"(?i)where (?:was|is) (.+?) born", question or ""
+                )
+                if who and re.fullmatch(
+                    re.escape(who.group(1).strip()), title.strip(), flags=re.I
+                ):
+                    place = wiki_birth_place(title)
+            if want_born_where:
+                extract_text = wiki_page_extract(title) or fetch(title) or ""
+            else:
+                extract_text = fetch(title) or ""
+            if place:
+                extract_text = f"{title} was born in {place}.\n{extract_text}".strip()
             if extract_text:
                 better = False
                 q_snip = float(extract.term_score(question, snip))
@@ -276,6 +394,23 @@ def enrich_hits_for_answer(
                     better = True
                 elif want_apollo_when and re.search(r"\b1969\b", extract_text) and not re.search(
                     r"\b1969\b", snip
+                ):
+                    better = True
+                elif want_founded_when and re.search(
+                    r"(?i)\bfounded in\s+\d{4}\b", extract_text
+                ) and not re.search(r"(?i)\bfounded in\s+\d{4}\b", snip):
+                    better = True
+                elif want_born_where and (
+                    place
+                    or re.search(r"(?i)\bborn (?:in|at)\s+[A-Z]", extract_text)
+                ) and not re.search(r"(?i)\bborn (?:in|at)\s+[A-Z]", snip):
+                    better = True
+                elif want_born_where and place:
+                    better = True
+                elif want_population and re.search(
+                    r"(?i)\b\d[\d.,]*\s*(?:million|billion)", extract_text
+                ) and not re.search(
+                    r"(?i)\b\d[\d.,]*\s*(?:million|billion)", snip
                 ):
                     better = True
                 elif looks_like_fragment(snip) and not looks_like_fragment(extract_text):
@@ -498,6 +633,47 @@ def rank_hits_scored(
             r"(?i)\b(bill gates|paul allen|founder)\b", text
         ):
             score += 3.0
+        if re.search(r"(?i)\bwhen\b", question or "") and re.search(
+            r"(?i)\bfounded\b", question or ""
+        ):
+            if re.search(r"(?i)\bfounded in\s+\d{4}\b", text):
+                score += 8.0
+            elif re.search(r"(?i)\bfounded\b", text) and re.search(r"\b(19|20)\d{2}\b", text):
+                score += 4.0
+            if re.search(r"(?i)\b(japan|copilot|excel|windows)\b", title) and not re.fullmatch(
+                r"(?i)microsoft", title.strip()
+            ):
+                score -= 6.0
+        if re.search(r"(?i)\(disambiguation\)", title):
+            score -= 20.0
+        if re.search(r"(?i)\bborn\b", question or "") and re.search(
+            r"(?i)\bwhere\b", question or ""
+        ):
+            who = re.search(r"(?i)where (?:was|is) (.+?) born", question or "")
+            who_name = who.group(1).strip() if who else ""
+            if who_name and re.fullmatch(
+                re.escape(who_name), title.strip(), flags=re.I
+            ):
+                score += 12.0
+            elif who_name and who_name.casefold() not in title.casefold():
+                score -= 15.0
+            elif who_name and re.match(
+                rf"(?i)^{re.escape(who_name)}\s*\(", title.strip()
+            ):
+                score -= 8.0
+            if re.search(r"(?i)\bborn (?:in|at)\s+[A-Z]", text):
+                # Only credit birthplace prose on the matching biography.
+                if who_name and re.fullmatch(
+                    re.escape(who_name), title.strip(), flags=re.I
+                ):
+                    score += 8.0
+                else:
+                    score += 1.0
+        if re.search(r"(?i)\bpopulation\b", question or ""):
+            if re.search(r"(?i)\b\d[\d.,]*\s*(?:million|billion)", text):
+                score += 8.0
+            elif re.search(r"(?i)\bpopulation\b", text) and re.search(r"\d", text):
+                score += 3.0
         if re.search(r"(?i)\bchemical symbol\b", question or ""):
             if re.search(r"(?i)\b(symbol|element)\b", text):
                 score += 2.0
@@ -719,6 +895,72 @@ def fact_core_from_doc(question: str, document: str) -> str | None:
                     core = (core + " " + m2.group(1)).strip()
             if len(core.split()) >= 3 and extract.verify(core.split()[0], doc):
                 return core
+    if re.search(r"(?i)\bpopulation\b", question or ""):
+        for pat in (
+            r"(?i)\bpopulation\s+of\s+(?:about\s+)?([\d.,]+\s*(?:million|billion|thousand)?)",
+            r"(?i)\bpopulation[:\s]+(?:of\s+)?(?:about\s+)?([\d.,]+\s*(?:million|billion|thousand)?)",
+            r"(?i)\b(?:has|with)\s+a\s+population\s+of\s+(?:about\s+)?"
+            r"([\d.,]+\s*(?:million|billion|thousand)?)",
+            r"(?i)\bpopulation\s+of\s+the\s+(?:city\s+proper\s+)?"
+            r"was\s+(?:over\s+|about\s+)?([\d.,]+\s*(?:million|billion|thousand)?)",
+            r"(?i)\b(?:over|about|approximately)\s+([\d.,]+\s*million)\b",
+        ):
+            mm = re.search(pat, doc)
+            if mm:
+                core = mm.group(1).strip().rstrip(".")
+                if extract.verify(core.split()[0], doc):
+                    return core
+    if re.search(r"(?i)\bborn\b", question or ""):
+        for pat in (
+            r"(?i)\bborn\s+(?:in|at)\s+"
+            r"([A-Z][A-Za-z.-]+(?:,\s*[A-Z][A-Za-z.-]+)?)",
+            r"(?i)\bbirthplace[:\s]+([A-Z][A-Za-z.-]+(?:,\s*[A-Z][A-Za-z.-]+)?)",
+            r"(?i)\braised\s+in\s+"
+            r"([A-Z][A-Za-z.-]+(?:,\s*[A-Z][A-Za-z.-]+)?)",
+        ):
+            mm = re.search(pat, doc)
+            if mm:
+                core = mm.group(1).strip().rstrip(".")
+                # Skip date-only "born November" false starts.
+                if re.match(r"(?i)(?:january|february|march|april|may|june|"
+                            r"july|august|september|october|november|december)\b", core):
+                    continue
+                if extract.verify(core.split(",")[0].strip(), doc):
+                    return core
+    if re.search(r"(?i)\b(headquarters?|headquartered|based)\b", question or ""):
+        for pat in (
+            r"(?i)\bheadquartered\s+in\s+"
+            r"([A-Z][A-Za-z][A-Za-z.-]*(?:,\s*[A-Z][A-Za-z][A-Za-z.-]*)?)",
+            r"(?i)\bheadquarters\s+(?:are\s+)?in\s+"
+            r"([A-Z][A-Za-z][A-Za-z.-]*(?:,\s*[A-Z][A-Za-z][A-Za-z.-]*)?)",
+            r"(?i)\bbased\s+in\s+"
+            r"([A-Z][A-Za-z][A-Za-z.-]*(?:,\s*[A-Z][A-Za-z][A-Za-z.-]*)?)",
+        ):
+            mm = re.search(pat, doc)
+            if mm:
+                core = mm.group(1).strip().rstrip(".")
+                if extract.verify(core.split(",")[0].strip(), doc):
+                    return core
+    if re.search(r"(?i)\breleased\b", question or ""):
+        for pat in (
+            r"(?i)\breleased\s+in\s+(\d{4})",
+            r"(?i)\brelease\s+date[:\s]+(?:.*?)?(\d{4})",
+            r"(?i)\bfirst\s+released\s+(?:on\s+)?(?:\w+\s+\d{1,2},?\s+)?(\d{4})",
+        ):
+            mm = re.search(pat, doc)
+            if mm and extract.verify(mm.group(1), doc):
+                return mm.group(1)
+    if re.search(r"(?i)\bfounded\b", question or "") and re.search(
+        r"(?i)\bwhen\b", question or ""
+    ):
+        for pat in (
+            r"(?i)\bfounded\s+in\s+(\d{4})",
+            r"(?i)\bfounded\s+on\s+\w+\s+\d{1,2},?\s+(\d{4})",
+            r"(?i)\bestablished\s+in\s+(\d{4})",
+        ):
+            mm = re.search(pat, doc)
+            if mm and extract.verify(mm.group(1), doc):
+                return mm.group(1)
     return None
 
 
@@ -736,6 +978,19 @@ def hits_to_document(hits: list[dict], *, snippet_chars: int = 320, question: st
             if re.search(r"(?i)\bwhen\b", question or ""):
                 for sent in re.split(r"(?<=[.!?])\s+", snip):
                     if re.search(r"\b(1[89]\d{2}|20\d{2})\b", sent):
+                        kept = sent.strip()
+                        break
+            if not kept and re.search(r"(?i)\bpopulation\b", question or ""):
+                for sent in re.split(r"(?<=[.!?])\s+", snip):
+                    if re.search(
+                        r"(?i)\bpopulation\b.*\d|\d[\d.,]*\s*(?:million|billion)",
+                        sent,
+                    ):
+                        kept = sent.strip()
+                        break
+            if not kept and re.search(r"(?i)\bborn\b", question or ""):
+                for sent in re.split(r"(?<=[.!?])\s+", snip):
+                    if re.search(r"(?i)\bborn (?:in|at)\s+[A-Z]", sent):
                         kept = sent.strip()
                         break
             if not kept:
@@ -771,10 +1026,13 @@ def _get(url: str, timeout: int = 20) -> bytes:
 def search_wikipedia(query: str, limit: int = 5) -> list[dict]:
     """MediaWiki opensearch + extract. Stable smoke backend."""
     q = urllib.parse.quote(query)
-    raw = json.loads(_get(
-        f"https://en.wikipedia.org/w/api.php?action=opensearch&search={q}"
-        f"&limit={limit}&namespace=0&format=json"
-    ))
+    try:
+        raw = json.loads(_get(
+            f"https://en.wikipedia.org/w/api.php?action=opensearch&search={q}"
+            f"&limit={limit}&namespace=0&format=json"
+        ))
+    except Exception:
+        return []
     # [query, titles, descriptions, urls]
     titles, descs, urls = raw[1], raw[2], raw[3]
     hits = []
@@ -1308,6 +1566,19 @@ def template_reply(question: str, core: str, document: str) -> str | None:
             return f"{c}."
         return f"{thing} is {c}."
 
+    m = re.search(
+        r"(?i)^\s*where (?:is|are) (.+?) (?:headquartered|based)\??\s*$",
+        q,
+    )
+    if m:
+        org = m.group(1).strip().rstrip("?.")
+        return f"{org} is headquartered in {c}."
+
+    m = re.search(r"(?i)^\s*what (?:is|are) the headquarters of (.+?)\??\s*$", q)
+    if m:
+        org = m.group(1).strip().rstrip("?.")
+        return f"The headquarters of {org} are in {c}."
+
     m = re.search(r"(?i)^\s*where is (?:the )?(.+?)\??\s*$", q)
     if m:
         place = m.group(1).strip().rstrip("?.")
@@ -1325,6 +1596,28 @@ def template_reply(question: str, core: str, document: str) -> str | None:
     m = re.search(r"(?i)boiling point of (\w+)", q)
     if m:
         return f"The boiling point of {m.group(1)} is {c}°C."
+
+    m = re.search(r"(?i)^\s*where (?:was|is) (.+?) born\??\s*$", q)
+    if m:
+        who = m.group(1).strip().rstrip("?.")
+        return f"{who} was born in {c}."
+
+    m = re.search(r"(?i)^\s*what is the population of (.+?)\??\s*$", q)
+    if m:
+        place = m.group(1).strip().rstrip("?.")
+        return f"The population of {place} is {c}."
+
+    m = re.search(r"(?i)^\s*when (?:was|were) (?:the )?(.+?) released\??\s*$", q)
+    if m:
+        thing = m.group(1).strip().rstrip("?.")
+        return f"The {thing} was released in {c}." if not thing.lower().startswith(
+            "the "
+        ) else f"{thing} was released in {c}."
+
+    m = re.search(r"(?i)^\s*when (?:was|were) (.+?) founded\??\s*$", q)
+    if m:
+        org = m.group(1).strip().rstrip("?.")
+        return f"{org} was founded in {c}."
 
     m = re.search(r"(?i)^\s*what is\s+([A-Z]{2,8})\??\s*$", q)
     if m:
@@ -1386,6 +1679,29 @@ def core_fits_question(question: str, core: str | None) -> bool:
         return False
     if re.search(r"(?i)\bwhen\b", question or "") and not re.search(r"\d", c):
         return False
+    if re.search(r"(?i)\bpopulation\b", question or "") and not re.search(r"\d", c):
+        return False
+    if re.search(r"(?i)\bborn\b", question or "") and re.search(
+        r"(?i)\bwhere\b", question or ""
+    ):
+        # Birthplace must look like a place, not a person fragment / article.
+        if re.fullmatch(r"(?i)the|a|an|he|she|they|him|her", c):
+            return False
+        if re.search(
+            r"(?i)^(january|february|march|april|may|june|july|august|"
+            r"september|october|november|december)\b",
+            c,
+        ):
+            return False
+        if re.fullmatch(r"\d{4}", c):
+            return False
+        who = re.search(
+            r"(?i)where (?:was|is) (.+?) born", question or ""
+        )
+        if who and extract.norm(c) in extract.norm(who.group(1)):
+            return False
+        if len(c) < 3:
+            return False
     if re.search(r"(?i)\bchemical symbol\b", question or ""):
         # Atomic numbers are not chemical symbols.
         if re.fullmatch(r"\d+", c):

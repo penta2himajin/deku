@@ -186,6 +186,16 @@ def run(
         return out
 
     if hs.wants_summary(question or ""):
+        # Prefer a strong lexical lead / template over weak map-reduce prose.
+        doc_preview = to_document(target, text)
+        lead = lexical_answer(question, doc_preview)
+        if lead and float(extract.term_score(question, lead)) >= 2.0:
+            out.document = doc_preview
+            out.detail["core"] = lead
+            out.detail["reply_source"] = "lexical"
+            out.detail["mode"] = "summarize_lead"
+            out.answer, out.status = lead, "ok"
+            return out
         # Hierarchical map-reduce over a longer window (extractive-anchored).
         body = text if len(text) <= MAX_SUMMARY_CHARS else text[:MAX_SUMMARY_CHARS]
         out.document = to_document(target, body, limit=MAX_SUMMARY_CHARS)

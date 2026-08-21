@@ -530,11 +530,24 @@ def run(
         out.answer, out.status = definition_reply(doc_top, defn), "ok"
         return out
 
-    # Prose / overview: MiniCPM summarize with grounding, else README lead.
+    # Prose / overview: prefer a grounded lead sentence over weak MiniCPM
+    # summary for about/purpose/project questions.
     doc = full_prose or hits_to_document(packed)
     out.document = doc
     if mode == "prose":
         lead = prose_lead_sentence(doc, question) or out.detail.get("prose_lead_candidate")
+        overview = bool(
+            re.search(
+                r"(?i)\b(about|purpose|overview|this project|what (?:is|does) (?:this|deku))\b",
+                question or "",
+            )
+        )
+        if overview and lead:
+            out.detail["core"] = lead
+            out.detail["reply_source"] = "prose_lead"
+            out.detail["summary_skipped"] = "overview_prefers_lead"
+            out.answer, out.status = lead, "ok"
+            return out
         summary = ws.minicpm_summarize(question, doc, seed=seed)
         out.detail["summary"] = summary
         use_summary = bool(

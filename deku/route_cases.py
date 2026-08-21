@@ -19,7 +19,7 @@ ROUTE_CASES: list[tuple[str, str, str]] = [
     ("What changed in the last commit?", "git_search", "hard"),
     (
         "Show me the commit log of the last commit that changed this part.",
-        "refuse",
+        "clarify",
         "hard",
     ),
     ("Fix the bug in route.py", "refuse", "hard"),
