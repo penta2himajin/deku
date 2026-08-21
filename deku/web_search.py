@@ -636,6 +636,16 @@ def prefer_answer_span(snippet: str, question: str) -> str:
 def fact_core_from_doc(question: str, document: str) -> str | None:
     """Deterministic short core from notes when MiniCPM picks the wrong type."""
     doc = document or ""
+    if re.search(r"(?i)\bcapital of\b", question or ""):
+        for line in doc.splitlines():
+            for pat in (
+                r"(?i)\b([A-Z][A-Za-z.-]+(?:\s+[A-Z][A-Za-z.-]+)?)\s+is the capital\b",
+                r"(?i)\bcapital (?:city )?of\s+[^.]{0,40}?\bis\s+"
+                r"([A-Z][A-Za-z.-]+(?:\s+[A-Z][A-Za-z.-]+)?)\b",
+            ):
+                mm = re.search(pat, line)
+                if mm and extract.verify(mm.group(1), doc):
+                    return mm.group(1)
     if re.search(r"(?i)\bchemical symbol\b", question or ""):
         for pat in (
             r"(?i)\b(?:chemical )?symbol (?:is |of |:|=)?\s*([A-Z][a-z]?)\b",
@@ -1045,6 +1055,10 @@ def minicpm_extract(question: str, document: str, seed: int = 0) -> tuple[str | 
     Question-term filtering is skipped for the core: a short name like
     "Tim Cook" is often the right span but fails `relevant(question, quote)`.
     Retries once with seed+1; recovers names from list-style answers like '1. Paris'.
+
+    Uses chat completions (no reply prefill). Prefill + /v1/completions is the
+    MLX/deku-serve path; llama-server GGUF with --jinja emits degenerate
+    digit loops on that shape — measured on MiniCPM5-1B-Q4_K_M.
     """
     from deku import llm
 
@@ -1052,11 +1066,13 @@ def minicpm_extract(question: str, document: str, seed: int = 0) -> tuple[str | 
     for s in (seed, seed + 1):
         raw = llm.complete(
             extract.PROMPT.format(question=question, doc=document),
-            temp=extract.TEMP, seed=s, max_tokens=extract.MAX_TOKENS,
-            prefill=extract.PREFILL, stop=extract.STOPS,
+            think=False,
+            temp=extract.TEMP,
+            seed=s,
+            max_tokens=extract.MAX_TOKENS,
         )
-        body = raw[len(extract.PREFILL):] if raw.startswith(extract.PREFILL) else raw
-        cleaned = re.sub(r"^\s*\d+[.)]\s*", "", (body or "").strip())
+        body = re.sub(r"(?i)^\s*answer:\s*", "", (raw or "").strip())
+        cleaned = re.sub(r"^\s*\d+[.)]\s*", "", body)
         hit, status = extract.classify("web", cleaned, document, question=None)
         last_status = status
         if hit and (hit.get("answer") or "").strip():

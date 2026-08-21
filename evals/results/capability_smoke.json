@@ -1,0 +1,309 @@
+{
+  "backend": "gguf",
+  "base_url": "http://127.0.0.1:8080",
+  "model": "MiniCPM5-1B",
+  "when": "2026-08-21T08:55:39.252804+00:00",
+  "passed": 11,
+  "total": 11,
+  "rows": [
+    {
+      "name": "refuse:math",
+      "pass": true,
+      "tool": "refuse",
+      "status": "refused",
+      "reason": "math",
+      "answer": "I cannot help with math or calculation questions.",
+      "elapsed_ms": 0,
+      "fail_reasons": [],
+      "detail_keys": [
+        "cue",
+        "reason",
+        "router"
+      ]
+    },
+    {
+      "name": "refuse:code",
+      "pass": true,
+      "tool": "refuse",
+      "status": "refused",
+      "reason": "code",
+      "answer": "I cannot write or implement code. Ask about existing project files, git history, or diffs instead.",
+      "elapsed_ms": 0,
+      "fail_reasons": [],
+      "detail_keys": [
+        "cue",
+        "reason",
+        "router"
+      ]
+    },
+    {
+      "name": "refuse:chitchat",
+      "pass": true,
+      "tool": "refuse",
+      "status": "refused",
+      "reason": "chitchat",
+      "answer": "I only answer factual lookup questions (public web facts, this repository, git history, diffs, or a given URL).",
+      "elapsed_ms": 0,
+      "fail_reasons": [],
+      "detail_keys": [
+        "cue",
+        "reason",
+        "router"
+      ]
+    },
+    {
+      "name": "refuse:deep",
+      "pass": true,
+      "tool": "refuse",
+      "status": "refused",
+      "reason": "deep_reasoning",
+      "answer": "I cannot do open-ended reasoning, proofs, or long analysis. Ask a short factual question, summarize a specific URL or document, or ask two linked factual questions for a shallow multi-hop lookup.",
+      "elapsed_ms": 0,
+      "fail_reasons": [],
+      "detail_keys": [
+        "cue",
+        "reason",
+        "router"
+      ]
+    },
+    {
+      "name": "refuse:fix_bug",
+      "pass": true,
+      "tool": "refuse",
+      "status": "refused",
+      "reason": "code",
+      "answer": "I cannot write or implement code. Ask about existing project files, git history, or diffs instead.",
+      "elapsed_ms": 0,
+      "fail_reasons": [],
+      "detail_keys": [
+        "cue",
+        "reason",
+        "router"
+      ]
+    },
+    {
+      "name": "control:apple_ceo",
+      "pass": true,
+      "tool": "web_search",
+      "status": "ok",
+      "reason": null,
+      "answer": "The CEO of Apple is Tim Cook.",
+      "elapsed_ms": 8115,
+      "fail_reasons": [],
+      "detail_keys": [
+        "core",
+        "cue",
+        "doc_score",
+        "enriched",
+        "extract_status",
+        "raw_hits",
+        "reply_source",
+        "router",
+        "summary",
+        "top_score"
+      ]
+    },
+    {
+      "name": "control:france_capital",
+      "pass": true,
+      "tool": "web_search",
+      "status": "ok",
+      "reason": null,
+      "answer": "The capital of France is Paris.",
+      "elapsed_ms": 9614,
+      "fail_reasons": [],
+      "detail_keys": [
+        "core",
+        "cue",
+        "doc_score",
+        "extract_status",
+        "raw_hits",
+        "reply_source",
+        "router",
+        "summary",
+        "top_score"
+      ]
+    },
+    {
+      "name": "sum:url_apollo",
+      "pass": true,
+      "tool": "url_read",
+      "status": "ok",
+      "reason": null,
+      "answer": "Humans landed the Moon on July 16, 1961, with one-fifth of the world's population. The US was engaged in the Cold War, and the Soviet Union had higher lift capacity. The speech was delivered at a football stadium in Houston. The Moon is a goal.",
+      "elapsed_ms": 3424,
+      "fail_reasons": [],
+      "detail_keys": [
+        "cue",
+        "leaves",
+        "low_question_overlap",
+        "mode",
+        "n_chunks",
+        "reduce_0",
+        "reduce_1",
+        "router"
+      ]
+    },
+    {
+      "name": "hop:cook_paris",
+      "pass": true,
+      "tool": "multi_hop",
+      "status": "ok",
+      "reason": null,
+      "answer": "1. The CEO of Apple is Tim Cook.\n2. Paris is the capital of France, located on the Seine River in the Île-de-France region.",
+      "elapsed_ms": 17696,
+      "fail_reasons": [],
+      "detail_keys": [
+        "cue",
+        "dependent",
+        "mode",
+        "plan_id",
+        "rewritten",
+        "router",
+        "steps"
+      ]
+    },
+    {
+      "name": "git:last_commit",
+      "pass": true,
+      "tool": "git_search",
+      "status": "ok",
+      "reason": null,
+      "answer": "The last commit message is \"feat: port agent core whitelist and deku ask CLI\".",
+      "elapsed_ms": 42,
+      "fail_reasons": [],
+      "detail_keys": [
+        "cue",
+        "reply_source",
+        "root",
+        "router"
+      ]
+    },
+    {
+      "name": "dir:project",
+      "pass": true,
+      "tool": "dir_search",
+      "status": "ok",
+      "reason": null,
+      "answer": "Ask (with server up for live MiniCPM answers; refuse / some lexical paths work offline):",
+      "elapsed_ms": 240,
+      "fail_reasons": [],
+      "detail_keys": [
+        "core",
+        "cue",
+        "mode",
+        "prose_filtered",
+        "prose_full_file",
+        "prose_lead_candidate",
+        "raw_hits",
+        "reply_source",
+        "root",
+        "router",
+        "summary",
+        "summary_rejected",
+        "top_score"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "name": "refuse:math",
+      "question": "What is 2+2?",
+      "expect_tool": "refuse",
+      "expect_status": "refused",
+      "expect_reason": "math",
+      "answer_must_match": null,
+      "answer_must_not_match": null
+    },
+    {
+      "name": "refuse:code",
+      "question": "Write a sort function",
+      "expect_tool": "refuse",
+      "expect_status": "refused",
+      "expect_reason": "code",
+      "answer_must_match": null,
+      "answer_must_not_match": null
+    },
+    {
+      "name": "refuse:chitchat",
+      "question": "hello there",
+      "expect_tool": "refuse",
+      "expect_status": "refused",
+      "expect_reason": "chitchat",
+      "answer_must_match": null,
+      "answer_must_not_match": null
+    },
+    {
+      "name": "refuse:deep",
+      "question": "Compare capitalism and socialism in a long essay",
+      "expect_tool": "refuse",
+      "expect_status": "refused",
+      "expect_reason": "deep_reasoning",
+      "answer_must_match": null,
+      "answer_must_not_match": null
+    },
+    {
+      "name": "refuse:fix_bug",
+      "question": "Fix the bug in route.py",
+      "expect_tool": "refuse",
+      "expect_status": "refused",
+      "expect_reason": "code",
+      "answer_must_match": null,
+      "answer_must_not_match": null
+    },
+    {
+      "name": "control:apple_ceo",
+      "question": "Who is the CEO of Apple?",
+      "expect_tool": "web_search",
+      "expect_status": "ok",
+      "expect_reason": null,
+      "answer_must_match": "Tim Cook",
+      "answer_must_not_match": null
+    },
+    {
+      "name": "control:france_capital",
+      "question": "What is the capital of France?",
+      "expect_tool": "web_search",
+      "expect_status": "ok",
+      "expect_reason": null,
+      "answer_must_match": "Paris",
+      "answer_must_not_match": null
+    },
+    {
+      "name": "sum:url_apollo",
+      "question": "Summarize https://en.wikipedia.org/wiki/Apollo_11",
+      "expect_tool": "url_read",
+      "expect_status": "ok",
+      "expect_reason": null,
+      "answer_must_match": "Apollo|Moon|NASA",
+      "answer_must_not_match": null
+    },
+    {
+      "name": "hop:cook_paris",
+      "question": "Who is the CEO of Apple and what is the capital of France?",
+      "expect_tool": "multi_hop",
+      "expect_status": "ok",
+      "expect_reason": null,
+      "answer_must_match": "(?s)Tim Cook.*Paris|Paris.*Tim Cook",
+      "answer_must_not_match": null
+    },
+    {
+      "name": "git:last_commit",
+      "question": "What is the last commit message?",
+      "expect_tool": "git_search",
+      "expect_status": "ok",
+      "expect_reason": null,
+      "answer_must_match": ".+",
+      "answer_must_not_match": null
+    },
+    {
+      "name": "dir:project",
+      "question": "What is this project about?",
+      "expect_tool": "dir_search",
+      "expect_status": "ok",
+      "expect_reason": null,
+      "answer_must_match": "deku|MiniCPM|harness|task",
+      "answer_must_not_match": null
+    }
+  ]
+}

@@ -27,16 +27,18 @@ Toolchain polish: `mise.toml` + `uv.lock` + `mise run {sync,test,serve,doctor}`.
 - [x] Package layout under `deku/`.
 - [x] Port whitelist from prior experiments (see [architecture.md](./architecture.md)); TDD.
 - [x] CLI `deku ask "…"`.
-- [ ] Re-run capability smokes **on GGUF** (refuse / summarize / multi-hop / controls). Do not copy MLX scores.
+- [x] Re-run capability smokes **on GGUF** (refuse / summarize / multi-hop / controls). Do not copy MLX scores.
 
 **Done when:** unit tests green; demo smokes pass against default serve.
 
+Measured: `mise run capability-smoke` → `evals/results/capability_smoke.json` (GGUF backend).
+
 ## Phase 3 — Demo pack (1–2 days)
 
-- [ ] Scripted demo script (CEO, URL summary, dependent hop, math refuse).
-- [ ] Tiny `evals/` fixed set + result JSON.
-- [ ] Short architecture diagram in README (harness plans → MiniCPM reads).
-- [ ] Honest limitations (EN/ZH, no JA, no CoT planner).
+- [x] Scripted demo script (CEO, URL summary, dependent hop, math refuse).
+- [x] Tiny `evals/` fixed set + result JSON.
+- [x] Short architecture diagram in README (harness plans → MiniCPM reads).
+- [x] Honest limitations (EN/ZH, no JA, no CoT planner).
 
 **Done when:** a 2-minute walkthrough is reproducible from README alone.
 

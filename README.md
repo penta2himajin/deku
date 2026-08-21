@@ -95,6 +95,7 @@ uv run python -m unittest discover -s tests
 | `mise run sync` | `uv sync` (lockfile + editable `deku`) |
 | `mise run test` | unit tests (no GPU / no weights) |
 | `mise run doctor` | PATH / Python / GGUF readiness |
+| `mise run capability-smoke` | Live GGUF smokes (refuse / web / url / hop / git / dir) |
 | `mise run serve` | ensure GGUF → `llama-server --jinja` |
 | `mise run smoke` | one `llm.complete()` against `DEKU_URL` |
 
@@ -103,6 +104,34 @@ Tests (no model required):
 ```bash
 mise run test
 ```
+
+Live capability smokes (needs `mise run serve` + network):
+
+```bash
+mise run capability-smoke
+# writes evals/results/capability_smoke.json
+```
+
+## How it works
+
+```mermaid
+flowchart LR
+  Q[User question] --> R[route / refuse]
+  R -->|tool| T[web / url / dir / git / diff / multi-hop]
+  T --> E[grounded evidence]
+  E --> M[MiniCPM short complete]
+  M --> A[Answer or refuse]
+```
+
+The harness picks tools and builds evidence; MiniCPM only compresses or extracts short grounded spans. It does not author multi-step plans.
+
+## Limitations (honest)
+
+- Tuned for **MiniCPM5-1B** on **English** (and Chinese to some extent). Japanese often loops — not supported.
+- No general coding agent; code authoring and math are **refused** with a reason.
+- Default extract path uses **chat completions** (GGUF + `llama-server --jinja`). Prefill `/v1/completions` degenerates on this stack — measured.
+- Live web / URL quality depends on search snippets and network; weak evidence abstains rather than inventing.
+- Capability claims must be re-measured on GGUF (`mise run capability-smoke`); do not copy MLX scores from prior experiments.
 
 ## Intended capabilities (target)
 

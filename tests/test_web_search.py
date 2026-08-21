@@ -250,6 +250,17 @@ class TestAbstain(unittest.TestCase):
 class TestExtraFailures(unittest.TestCase):
     """Held-out failure modes from web_search_live_extra."""
 
+    def test_fact_core_capital_of_france(self):
+        doc = (
+            "Paris\n"
+            "Paris is the capital and largest city of France, with an "
+            "estimated city population of 2.04 million.\n"
+        )
+        self.assertEqual(
+            ws.fact_core_from_doc("What is the capital of France?", doc),
+            "Paris",
+        )
+
     def test_fact_core_chemical_and_author(self):
         fe = ws.fact_core_from_doc(
             "What is the chemical symbol for iron?",
@@ -261,7 +272,6 @@ class TestExtraFailures(unittest.TestCase):
             "Hamlet — The Tragedy of Hamlet is a play by William Shakespeare.",
         )
         self.assertEqual(author, "William Shakespeare")
-
 
     def test_who_wrote_rejects_work_as_author(self):
         self.assertFalse(
