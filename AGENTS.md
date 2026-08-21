@@ -12,8 +12,8 @@ Decision: @docs/decisions/0001-gguf-default-serve.md.
 ## Project Structure
 
 ```
-deku/           # Python package (llm client, serve helpers; route/tools next)
-bin/            # deku-serve (GGUF + llama-server)
+deku/           # Python package: llm, route, refuse, tools, multi_hop, orchestrate
+bin/            # deku-serve, deku CLI
 tests/          # unittest
 docs/           # architecture, roadmap, ADRs, handoff/i18n policy
 evals/          # small fixed demo smokes only (not a research warehouse)

@@ -28,6 +28,10 @@ run = "uv run deku-serve"
 description = "Check Python, uv, llama-server, and Hugging Face download readiness"
 run = "uv run python -m deku.doctor"
 
+[tasks.ask]
+description = "deku ask — route + dispatch (pass args after --)"
+run = "uv run deku ask"
+
 [tasks.smoke]
 description = "One-shot chat completion against DEKU_URL (server must already be up)"
 run = """

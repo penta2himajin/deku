@@ -7,9 +7,9 @@ summaries, repo lookup, git/diff, weak multi-step plans) with **explicit
 refusals** when the request is out of scope. The model only does short grounded
 completions; planning and tool choice live in code.
 
-> **Status:** Phase 1 serve wiring lands here (`deku.llm` + `bin/deku-serve`).
-> Agent tools are still being ported from experiments in
->  (not a runtime dependency).
+> **Status:** Phase 2 agent core is in-tree (`deku ask`, route / refuse / tools).
+> Measure capability smokes on the default GGUF path; do not copy MLX scores from
+> .
 
 ## Design in one page
 
@@ -53,6 +53,15 @@ brew install llama.cpp        # macOS bottle; or build https://github.com/ggerga
 
 # 4) Serve MiniCPM5-1B GGUF (downloads Q4_K_M into ~/.cache/deku/models)
 mise run serve
+```
+
+Ask (with server up for live MiniCPM answers; refuse / some lexical paths work offline):
+
+```bash
+uv run deku ask "What is 2+2?"
+uv run deku ask "Who is the CEO of Apple?"
+uv run deku ask "What is the last commit message?" --root .
+uv run deku ask "What is the PREFILL string?" --root . --no-live
 ```
 
 Smoke (second terminal, with the server up):

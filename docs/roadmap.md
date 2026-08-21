@@ -24,9 +24,9 @@ Toolchain polish: `mise.toml` + `uv.lock` + `mise run {sync,test,serve,doctor}`.
 
 ## Phase 2 — Agent core port (several days)
 
-- [ ] Package layout under `deku/`.
-- [ ] Port whitelist from prior experiments (see [architecture.md](./architecture.md)); TDD.
-- [ ] CLI `deku ask "…"`.
+- [x] Package layout under `deku/`.
+- [x] Port whitelist from prior experiments (see [architecture.md](./architecture.md)); TDD.
+- [x] CLI `deku ask "…"`.
 - [ ] Re-run capability smokes **on GGUF** (refuse / summarize / multi-hop / controls). Do not copy MLX scores.
 
 **Done when:** unit tests green; demo smokes pass against default serve.

@@ -39,6 +39,7 @@ Issues = "https://github.com/penta2himajin/deku/issues"
 
 [project.scripts]
 deku-serve = "deku.serve:main"
+deku = "deku.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["deku"]

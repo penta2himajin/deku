@@ -103,5 +103,32 @@ class TestComplete(unittest.TestCase):
             llm.complete("q", timeout=0.5)
 
 
+    def test_prefill_uses_completions(self) -> None:
+        class PrefillHandler(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length", "0"))
+                body = json.loads(self.rfile.read(length)) if length else {}
+                self.server.captured = {"path": self.path, "body": body}
+                payload = {"choices": [{"index": 0, "text": "Paris", "finish_reason": "stop"}]}
+                data = json.dumps(payload).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+            def log_message(self, *args):
+                pass
+
+        self.srv.shutdown()
+        self.srv.server_close()
+        self.srv = http.server.HTTPServer(("127.0.0.1", 0), PrefillHandler)
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        llm.BASE_URL = f"http://127.0.0.1:{self.srv.server_port}"
+        out = llm.complete("q", prefill="ANSWER: ", max_tokens=8, temp=0.2, seed=1)
+        self.assertEqual(out, "ANSWER: Paris")
+        self.assertEqual(self.srv.captured["path"], "/v1/completions")
+        self.assertTrue(self.srv.captured["body"]["prompt"].endswith("ANSWER: "))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,279 @@
+"""A+B weak multi-step plans: select a catalog pattern, build steps in code.
+
+Not model planning. Builders are tried in fixed priority; the first that
+produces a ≥2-step plan wins. Ambiguous mixes with no template → no plan
+(caller routes to a single tool or refuse) rather than guessing.
+
+Patterns covered:
+  - web_independent / web_dependent (pronoun / anaphora bind)
+  - dir_pair (two local/repo questions)
+  - git_and_diff (history then working-tree diff)
+"""
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from typing import Callable
+
+from deku import multi_hop as mh
+from deku import refuse as refuse_mod
+from deku import route_cues as cues
+from deku import web_search as ws
+
+TOOL_OK = frozenset({
+    "web_search", "dir_search", "git_search", "diff_search", "url_read",
+})
+
+DIR_WORDS = cues.DIR_WORDS
+GIT_CUES = re.compile(
+    r"(?i)\b(last commit|git (?:log|show|blame|history)|who (?:changed|committed)|"
+    r"when was .+ committed|commit message|git history|"
+    r"commit (?:that )?(?:changed|touched|modified))\b"
+)
+DIFF_CUES = re.compile(
+    r"(?i)\b(unstaged|staged|working tree|git diff|what changed in .+\.py|"
+    r"patch for|unstaged diff)\b"
+)
+WEB_CUES = ws.SEARCH_CUES
+JOIN_CUES = re.compile(
+    r"(?i)\b("
+    r"and (?:who|what|when|where|which)\b|"
+    r"\?\s+(?:and\s+)?(?:who|what|when|where|which)\b|"
+    r"and (?:what|show|list)\b"
+    r")"
+)
+
+
+@dataclass
+class Step:
+    tool: str
+    query: str
+    bind_prior: bool = False
+
+
+@dataclass
+class Plan:
+    plan_id: str
+    steps: list[Step]
+    dependent: bool = False
+
+
+@dataclass
+class Result:
+    answer: str | None = None
+    status: str = ""
+    document: str = ""
+    hits: list = field(default_factory=list)
+    detail: dict = field(default_factory=dict)
+
+
+def classify_clause(clause: str) -> str | None:
+    """Map one clause to a single retrieval tool, or None if unclear."""
+    c = clause or ""
+    if refuse_mod.is_hard_refuse(c):
+        return None
+    # More specific first.
+    if DIFF_CUES.search(c):
+        return "diff_search"
+    if GIT_CUES.search(c):
+        return "git_search"
+    if cues.has_dir_ident(c) or DIR_WORDS.search(c):
+        return "dir_search"
+    if WEB_CUES.search(c):
+        return "web_search"
+    return None
+
+
+def _clauses(question: str) -> list[str]:
+    return [c for c in mh.decompose(question) if c.strip()]
+
+
+def _looks_joined(question: str) -> bool:
+    q = question or ""
+    if JOIN_CUES.search(q):
+        return True
+    # Two code constants joined by and.
+    if len(cues.dir_idents(q)) >= 2 and re.search(r"(?i)\band\b", q):
+        return True
+    if GIT_CUES.search(q) and DIFF_CUES.search(q) and re.search(r"(?i)\band\b", q):
+        return True
+    return False
+
+
+def mixed_tools_without_plan(question: str) -> bool:
+    """Joined question whose clauses map to different tools (no catalog hit)."""
+    if not _looks_joined(question):
+        return False
+    if select_and_build(question):
+        return False
+    tools = {classify_clause(c) for c in _clauses(question)}
+    tools.discard(None)
+    return len(tools) >= 2
+
+
+def build_git_and_diff(question: str) -> Plan | None:
+    if not (GIT_CUES.search(question or "") and DIFF_CUES.search(question or "")):
+        return None
+    if not re.search(r"(?i)\band\b", question or ""):
+        return None
+    clauses = _clauses(question)
+    if len(clauses) < 2:
+        return None
+    tools = [classify_clause(c) for c in clauses]
+    if tools.count("git_search") != 1 or tools.count("diff_search") != 1:
+        return None
+    if any(t not in ("git_search", "diff_search") for t in tools):
+        return None
+    steps = [
+        Step(tool=t, query=c, bind_prior=False)
+        for c, t in zip(clauses, tools) if t
+    ]
+    if len(steps) != 2:
+        return None
+    return Plan(plan_id="git_and_diff", steps=steps, dependent=False)
+
+
+def build_dir_pair(question: str) -> Plan | None:
+    if not _looks_joined(question):
+        return None
+    clauses = _clauses(question)
+    if len(clauses) < 2:
+        return None
+    tools = [classify_clause(c) for c in clauses]
+    if not all(t == "dir_search" for t in tools):
+        return None
+    steps = [Step(tool="dir_search", query=c) for c in clauses[:3]]
+    return Plan(plan_id="dir_pair", steps=steps, dependent=False)
+
+
+def build_web_pair(question: str) -> Plan | None:
+    if not _looks_joined(question):
+        return None
+    clauses = _clauses(question)
+    if len(clauses) < 2:
+        return None
+    tools = [classify_clause(c) for c in clauses]
+    if not all(t == "web_search" for t in tools):
+        return None
+    dependent = any(mh.needs_prior(c) for c in clauses[1:])
+    steps = []
+    for i, c in enumerate(clauses[:3]):
+        steps.append(
+            Step(tool="web_search", query=c, bind_prior=(i > 0 and mh.needs_prior(c)))
+        )
+    return Plan(
+        plan_id="web_dependent" if dependent else "web_independent",
+        steps=steps,
+        dependent=dependent,
+    )
+
+
+# First match wins — more specific patterns before generic web.
+BUILDERS: tuple[Callable[[str], Plan | None], ...] = (
+    build_git_and_diff,
+    build_dir_pair,
+    build_web_pair,
+)
+
+
+def select_and_build(question: str) -> Plan | None:
+    """Try catalog builders in order; return the first ≥2-step plan."""
+    if refuse_mod.is_hard_refuse(question or ""):
+        return None
+    for build in BUILDERS:
+        plan = build(question)
+        if plan and len(plan.steps) >= 2:
+            if any(s.tool not in TOOL_OK or not s.query.strip() for s in plan.steps):
+                continue
+            return plan
+    return None
+
+
+def _run_one(
+    tool: str,
+    query: str,
+    *,
+    root: str,
+    seed: int,
+    runners: dict | None,
+):
+    if runners and tool in runners:
+        return runners[tool](query, seed=seed, root=root)
+    if tool == "web_search":
+        return ws.run(query, router="rule", seed=seed)
+    if tool == "dir_search":
+        from deku import dir_search as ds
+        return ds.run(query, root=root, seed=seed)
+    if tool == "git_search":
+        from deku import git_search as gits
+        return gits.run(query, root=root, seed=seed, live_answer=True)
+    if tool == "diff_search":
+        from deku import diff_search as diffs
+        return diffs.run(query, root=root, seed=seed, live_answer=True)
+    if tool == "url_read":
+        from deku import url_read as ur
+        return ur.run(query, seed=seed, live_answer=True)
+    raise ValueError(f"unsupported tool {tool}")
+
+
+def run(
+    question: str,
+    *,
+    seed: int = 0,
+    root: str = ".",
+    runners: dict | None = None,
+    plan: Plan | None = None,
+) -> Result:
+    """Select (unless `plan` given) and execute a weak multi-step plan."""
+    out = Result(detail={"mode": "orchestrate"})
+    built = plan or select_and_build(question)
+    if not built:
+        out.status = "refused"
+        out.answer = (
+            "I could not build a multi-step plan for that. "
+            "Ask one short factual question, or join two clear questions "
+            "with 'and what/who/when…'."
+        )
+        out.detail["reason"] = "no_plan"
+        return out
+    out.detail["plan_id"] = built.plan_id
+    out.detail["steps"] = [
+        {"tool": s.tool, "query": s.query, "bind_prior": s.bind_prior}
+        for s in built.steps
+    ]
+    hops: list[tuple[str, str]] = []
+    docs: list[str] = []
+    rewritten: list[str] = []
+    prior_core: str | None = None
+    dependent = built.dependent
+    for i, step in enumerate(built.steps):
+        q = step.query
+        if step.bind_prior and prior_core:
+            q = mh.rewrite_followup(q, prior_core)
+            dependent = True
+        rewritten.append(q)
+        got = _run_one(
+            step.tool, q, root=root, seed=seed + i, runners=runners,
+        )
+        out.hits.extend(getattr(got, "hits", None) or [])
+        docs.append(getattr(got, "document", None) or "")
+        if getattr(got, "status", None) != "ok" or not (getattr(got, "answer", None) or "").strip():
+            out.status = "cannot_answer"
+            out.answer = (
+                f"I cannot answer from the available sources "
+                f"(failed on: {q} via {step.tool})"
+            )
+            out.detail["failed_sub"] = q
+            out.detail["failed_tool"] = step.tool
+            out.detail["sub_status"] = getattr(got, "status", None)
+            out.detail["rewritten"] = rewritten
+            out.detail["dependent"] = dependent
+            return out
+        prior_core = mh.core_from_result(got) or prior_core
+        hops.append((q, got.answer.strip()))
+    out.detail["rewritten"] = rewritten
+    out.detail["dependent"] = dependent
+    out.document = "\n\n".join(d for d in docs if d)
+    out.answer = mh.integrate(hops, dependent=dependent)
+    out.status = "ok"
+    return out
