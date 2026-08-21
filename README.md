@@ -173,4 +173,4 @@ uv.lock         # reproducible installs
 
 ## License
 
-MIT. See `LICENSE`. MiniCPM5 model weights are under their own licenses on Hugging Face.
+Apache-2.0. See `LICENSE`. MiniCPM5 model weights are under their own licenses on Hugging Face.

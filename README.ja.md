@@ -49,4 +49,4 @@ mise run serve
 
 ## ライセンス
 
-MIT（`LICENSE`）。モデル重みは Hugging Face 上の各ライセンスに従う。
+Apache-2.0（`LICENSE`）。モデル重みは Hugging Face 上の各ライセンスに従う。
