@@ -1056,8 +1056,8 @@ def minicpm_extract(question: str, document: str, seed: int = 0) -> tuple[str | 
     "Tim Cook" is often the right span but fails `relevant(question, quote)`.
     Retries once with seed+1; recovers names from list-style answers like '1. Paris'.
 
-    Uses chat completions (no reply prefill). Prefill + /v1/completions is the
-    MLX/deku-serve path; llama-server GGUF with --jinja emits degenerate
+    Uses chat completions (no reply prefill).     Prefill + /v1/completions is an alternate raw-completion path;
+    llama-server GGUF with --jinja emits degenerate
     digit loops on that shape — measured on MiniCPM5-1B-Q4_K_M.
     """
     from deku import llm

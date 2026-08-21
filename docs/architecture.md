@@ -41,15 +41,15 @@ Binary acquisition: document installing `llama-server` on PATH; do not vendor la
 
 1. Agent code depends only on the HTTP completion contract.
 2. Product tuning (prompts, refuse cues, chunk sizes, English-only) may assume MiniCPM5-1B.
-3. Alternate backends (oMLX, MLX deku-serve) are env overrides, not second first-class code paths in v1.
+3. Alternate backends (oMLX, other OpenAI-compatible servers) are env overrides, not second first-class code paths in v1.
 4. No silent fallback from refuse → web_search for deep/essay prompts.
 5. Eval numbers claimed in docs must be measured on the **default GGUF** path unless labeled otherwise.
 
-## Port whitelist (from prior experiments experiments)
+## In-scope agent modules
 
 **In scope:** `route`, `refuse`, `render`, `web_search`, `dir_search`, `git_search`, `diff_search`, `url_read`, `multi_hop`, `hier_summary`, `orchestrate`, small related unit tests.
 
-**Out of scope for deku:** `swebench*`, Ling/Maple A/B farms, `pipeline`/`act` research loops, bekko ranking experiments, MCP extract server (belongs with runtime/extract, not this product).
+**Out of scope for deku:** `swebench*`, large coding-agent A/B farms, research training loops, ranking experiments, a separate MCP extract server (keep extract helpers in-process only).
 
 ## Weak multi-step (definition)
 

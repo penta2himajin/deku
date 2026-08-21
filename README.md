@@ -8,8 +8,7 @@ refusals** when the request is out of scope. The model only does short grounded
 completions; planning and tool choice live in code.
 
 > **Status:** Phase 2 agent core is in-tree (`deku ask`, route / refuse / tools).
-> Measure capability smokes on the default GGUF path; do not copy MLX scores from
-> .
+> Measure capability smokes on the default GGUF path; do not copy MLX-only scores.
 
 ## Design in one page
 
@@ -20,8 +19,8 @@ completions; planning and tool choice live in code.
 | **Default serve** | Official **GGUF** + `llama-server` (see below) |
 
 The harness **does not care** how the HTTP API is implemented (llama.cpp, oMLX,
-deku-serve, …). Semantics are tuned for **MiniCPM5-1B** (English-first,
-no free-form long reasoning, no code authoring).
+or any other OpenAI-compatible server). Semantics are tuned for **MiniCPM5-1B**
+(English-first, no free-form long reasoning, no code authoring).
 
 ### Default backend (GGUF)
 
@@ -131,7 +130,7 @@ The harness picks tools and builds evidence; MiniCPM only compresses or extracts
 - No general coding agent; code authoring and math are **refused** with a reason.
 - Default extract path uses **chat completions** (GGUF + `llama-server --jinja`). Prefill `/v1/completions` degenerates on this stack — measured.
 - Live web / URL quality depends on search snippets and network; weak evidence abstains rather than inventing.
-- Capability claims must be re-measured on GGUF (`mise run capability-smoke`); do not copy MLX scores from prior experiments.
+- Capability claims must be re-measured on GGUF (`mise run capability-smoke`); do not copy MLX-only scores.
 
 ## Intended capabilities (target)
 
@@ -147,7 +146,7 @@ The harness picks tools and builds evidence; MiniCPM only compresses or extracts
 - General coding agent / SWE-bench runner
 - Model-authored multi-step “chain of thought” planning
 - Japanese as a supported input language (MiniCPM5-1B is EN/ZH; JA loops)
-- Bundling MLX conversion stacks or large eval matrices from prior experiments
+- Bundling MLX conversion stacks or large research eval matrices
 
 ## Planned layout
 
@@ -169,7 +168,6 @@ uv.lock         # reproducible installs
 | [docs/architecture.md](./docs/architecture.md) | Boundaries, HTTP contract, GGUF default |
 | [docs/roadmap.md](./docs/roadmap.md) | Phased build plan (0→4) |
 | [docs/decisions/0001-gguf-default-serve.md](./docs/decisions/0001-gguf-default-serve.md) | Why GGUF + llama-server |
-
 
 ## License
 

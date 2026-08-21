@@ -117,12 +117,12 @@ def prose_lead_sentence(document: str, question: str | None = None) -> str | Non
             if path_map or re.search(r"(?i)\bbin/", sent):
                 score -= 4.0
         if question and re.search(r"(?i)\b(server|wrapper|mlx)\b", question):
-            if re.search(r"(?i)\bbin/|deku-server|mlx_lm\.server", sent):
+            if re.search(r"(?i)\bbin/|deku-serve|llama-server|mlx_lm\.server", sent):
                 score += 8.0
             if path_map and re.search(r"(?i)\bbin/", sent):
                 score += 6.0
             if re.search(r"(?i)\bwhere\b", question) and not re.search(
-                r"(?i)\bbin/|deku-server", sent
+                r"(?i)\bbin/|deku-serve|llama-server", sent
             ):
                 score -= 4.0
         if question and re.search(r"(?i)\b(models?|minicpm|llms?)\b", question):
@@ -360,7 +360,7 @@ def rank_chunks_scored(
         if re.search(r"(?i)\b(server|wrapper|mlx)\b", question or ""):
             if (
                 "bin/" in path
-                or re.search(r"(?i)deku-serv", path + " " + text)
+                or re.search(r"(?i)deku-serv|llama-server", path + " " + text)
                 or re.search(r"(?i)mlx_lm\.server", text)
             ):
                 score += 8.0

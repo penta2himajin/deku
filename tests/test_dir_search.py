@@ -178,7 +178,7 @@ class TestProseLead(unittest.TestCase):
             "README.md\n"
             "A small harness for MiniCPM on localhost.\n"
             "client.py    # CLI client (Python stdlib only — keep it dependency-free)\n"
-            "bin/         # deku-server (mlx_lm.server wrapper)\n"
+            "bin/         # deku-serve (mlx_lm.server wrapper)\n"
         )
         lead = ds.prose_lead_sentence(doc, "Where is the default mlx server wrapper?")
         self.assertIsNotNone(lead)
@@ -188,7 +188,7 @@ class TestProseLead(unittest.TestCase):
         doc = (
             "README.md\n"
             "A small, quick local-LLM harness: MiniCPM5-1B on localhost.\n"
-            "bin/         # deku-server (mlx_lm.server wrapper)\n"
+            "bin/         # deku-serve (mlx_lm.server wrapper)\n"
         )
         lead = ds.prose_lead_sentence(doc, "What is this project about?")
         self.assertIsNotNone(lead)
@@ -199,7 +199,7 @@ class TestProseLead(unittest.TestCase):
         doc = (
             "README.md\n"
             "A small, quick local-LLM harness: MiniCPM5-1B (4-bit MLX) resident on localhost.\n"
-            "- Resident server: bin/deku-server wraps mlx_lm.server on localhost.\n"
+            "- Resident server: bin/deku-serve wraps mlx_lm.server on localhost.\n"
         )
         lead = ds.prose_lead_sentence(doc, "What language models does deku run?")
         self.assertIsNotNone(lead)

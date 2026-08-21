@@ -64,7 +64,7 @@ mise run test
 - **Harness plans; MiniCPM reads.** No model-authored tool plans without code validation.
 - **Product default = official GGUF + `llama-server --jinja`.** Measure smokes on that path.
 - **HTTP indifference:** agent code must not import llama.cpp / MLX / GGUF parsers.
-- Port from prior experiments by **whitelist only** (see architecture.md). Do not drag SWE-bench / Ling farms in.
+- Keep the agent core small: route / refuse / tools / weak multi-hop only. Do not drag SWE-bench / coding-agent farms in.
 - English-first; do not promise Japanese UX.
 
 ## Architectural Boundaries

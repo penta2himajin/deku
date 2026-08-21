@@ -25,7 +25,7 @@ Toolchain polish: `mise.toml` + `uv.lock` + `mise run {sync,test,serve,doctor}`.
 ## Phase 2 — Agent core port (several days)
 
 - [x] Package layout under `deku/`.
-- [x] Port whitelist from prior experiments (see [architecture.md](./architecture.md)); TDD.
+- [x] Port agent core modules (see [architecture.md](./architecture.md)); TDD.
 - [x] CLI `deku ask "…"`.
 - [x] Re-run capability smokes **on GGUF** (refuse / summarize / multi-hop / controls). Do not copy MLX scores.
 
