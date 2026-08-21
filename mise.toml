@@ -1,0 +1,35 @@
+# Pin toolchain for OSS checkouts.
+# Install mise: https://mise.jdx.dev/getting-started.html
+# Then from repo root: `mise install && mise run sync`
+
+[tools]
+python = "3.12"
+uv = "latest"
+# llama-server stays a system / Homebrew install by default (fast bottles).
+# Optional: `mise use llama.cpp@latest` if you prefer mise-managed builds.
+
+[env]
+# Prefer the project venv created by `uv sync`.
+_.path = ["{{config_root}}/.venv/bin"]
+
+[tasks.sync]
+description = "Create .venv and install deku (editable) via uv"
+run = "uv sync"
+
+[tasks.test]
+description = "Run unit tests (no model / no llama-server required)"
+run = "uv run python -m unittest discover -s tests -v"
+
+[tasks.serve]
+description = "Ensure MiniCPM5 GGUF is cached, then exec llama-server --jinja"
+run = "uv run deku-serve"
+
+[tasks.doctor]
+description = "Check Python, uv, llama-server, and Hugging Face download readiness"
+run = "uv run python -m deku.doctor"
+
+[tasks.smoke]
+description = "One-shot chat completion against DEKU_URL (server must already be up)"
+run = """
+uv run python -c "from deku import llm; print(llm.complete('Say hi in one word.', max_tokens=16))"
+"""

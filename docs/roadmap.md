@@ -4,21 +4,23 @@ Phased plan for standing up deku. Adjust dates as needed; keep phase order.
 
 ## Phase 0 — Product face (half day)
 
-- [ ] Replace templates boilerplate with deku README / AGENTS (this repo).
-- [ ] First commit on `main`.
-- [ ] State MiniCPM5-1B-only product intent + GGUF default serve + HTTP indifference.
+- [x] Replace templates boilerplate with deku README / AGENTS (this repo).
+- [x] First commit on `main`.
+- [x] State MiniCPM5-1B-only product intent + GGUF default serve + HTTP indifference.
 - [ ] Optional: open `session-handoff` issue for the workstream.
 
 **Done when:** a stranger can read README and know what deku is / is not.
 
 ## Phase 1 — GGUF serve wiring (1–2 days)
 
-- [ ] `bin/deku-serve`: download official `MiniCPM5-1B-Q4_K_M.gguf` if needed; launch `llama-server --jinja`.
-- [ ] `deku/llm.py` (or equivalent): OpenAI-compatible `complete()`.
-- [ ] Smoke: `curl` chat completions against localhost.
-- [ ] Document PATH requirement for `llama-server` / `huggingface-cli`.
+- [x] `bin/deku-serve`: download official `MiniCPM5-1B-Q4_K_M.gguf` if needed; launch `llama-server --jinja`.
+- [x] `deku/llm.py` (or equivalent): OpenAI-compatible `complete()`.
+- [x] Smoke: `curl` chat completions against localhost (needs `llama-server` on PATH).
+- [x] Document PATH requirement for `llama-server` / `huggingface-cli`.
 
 **Done when:** clone + install llama.cpp tools + `./bin/deku-serve` yields a working API (no agent yet).
+
+Toolchain polish: `mise.toml` + `uv.lock` + `mise run {sync,test,serve,doctor}`.
 
 ## Phase 2 — Agent core port (several days)
 

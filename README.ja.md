@@ -6,7 +6,7 @@
 
 **MiniCPM5-1B 向け**のローカル・タスク・ハーネス。短い事実タスク（Web 事実、URL 要約、リポ照会、git/diff、弱い多段プラン）をコード側で回し、範囲外は**理由付きで拒否**する。モデルは短い grounded 完了だけを担当する。
 
-> **現状:** リポジトリ立ち上げ直後。構成と serve 方針はここに記録済み。エージェント実装は  での試行から移植予定（実行時依存にはしない）。
+> **現状:** Phase 1 の serve 配線（`deku.llm` + `bin/deku-serve`）まで。エージェントは  からの移植途中（実行時依存にはしない）。
 
 ## 設計（1 ページ）
 
@@ -25,6 +25,20 @@ HTTP の向こうの実装（llama.cpp / oMLX / 他）は**関知しない**。�
 - サーバ: `llama-server … --jinja`（OpenBMB の llama.cpp 手順に合わせる）
 
 詳細は [docs/architecture.md](./docs/architecture.md)、進め方は [docs/roadmap.md](./docs/roadmap.md)。
+
+## クイックスタート
+
+[mise](https://mise.jdx.dev/)（Python + [uv](https://docs.astral.sh/uv/)）と PATH 上の `llama-server` が必要です。
+
+```bash
+curl https://mise.run | sh    # または brew install mise
+mise trust && mise install
+mise run sync
+brew install llama.cpp        # macOS
+mise run serve
+```
+
+テスト: `mise run test`。診断: `mise run doctor`。
 
 ## 非目標
 

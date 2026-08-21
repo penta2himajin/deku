@@ -12,11 +12,12 @@ Decision: @docs/decisions/0001-gguf-default-serve.md.
 ## Project Structure
 
 ```
-deku/           # Python package (llm client, route, tools, orchestrate) — to be added
-bin/            # deku-serve (GGUF + llama-server), deku CLI — to be added
-tests/          # unittest — to be added
+deku/           # Python package (llm client, serve helpers; route/tools next)
+bin/            # deku-serve (GGUF + llama-server)
+tests/          # unittest
 docs/           # architecture, roadmap, ADRs, handoff/i18n policy
 evals/          # small fixed demo smokes only (not a research warehouse)
+mise.toml       # python + uv pins and tasks
 ```
 
 Generated / downloaded artifacts (GGUF weights, llama.cpp builds) stay **out of
@@ -24,15 +25,29 @@ git**; document download paths in README / `bin/deku-serve`.
 
 ## Development Setup
 
+Preferred (mise + uv):
+
 ```bash
-# Python 3.11+ recommended once package exists
-python3 -m venv .venv
-.venv/bin/pip install -e .   # when pyproject.toml exists
+# https://mise.jdx.dev/getting-started.html
+curl https://mise.run | sh   # or brew install mise
+mise trust && mise install   # python 3.12 + uv
+mise run sync                # uv sync → .venv + editable deku
+mise run doctor              # PATH / GGUF readiness
+# llama-server on PATH (not vendored):
+brew install llama.cpp       # macOS; or build ggml-org/llama.cpp
+mise run serve               # download GGUF once, exec llama-server --jinja
+```
 
-# Default serve needs llama-server on PATH (llama.cpp) and network once for GGUF:
-#   huggingface-cli download openbmb/MiniCPM5-1B-GGUF MiniCPM5-1B-Q4_K_M.gguf --local-dir ~/.cache/deku/models
-#   ./bin/deku-serve
+Fallback without mise:
 
+```bash
+# Install uv: https://docs.astral.sh/uv/
+uv sync
+uv run python -m unittest discover -s tests
+uv run deku-serve
+```
+
+```bash
 cp git-hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
 # or: git config core.hooksPath git-hooks
 ```
@@ -40,10 +55,9 @@ cp git-hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
 ## Build & Test
 
 ```bash
-.venv/bin/python -m unittest discover -s tests
+mise run test
+# or: uv run python -m unittest discover -s tests
 ```
-
-(Until `tests/` exists, docs-only changes need no test run.)
 
 ## Development Principles
 

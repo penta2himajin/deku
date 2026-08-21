@@ -7,9 +7,9 @@ summaries, repo lookup, git/diff, weak multi-step plans) with **explicit
 refusals** when the request is out of scope. The model only does short grounded
 completions; planning and tool choice live in code.
 
-> **Status:** greenfield. Layout and serve wiring are specified here; agent code
-> is being ported from experiments in 
-> (runtime / eval warehouse — not a dependency at runtime).
+> **Status:** Phase 1 serve wiring lands here (`deku.llm` + `bin/deku-serve`).
+> Agent tools are still being ported from experiments in
+>  (not a runtime dependency).
 
 ## Design in one page
 
@@ -34,6 +34,67 @@ Any other OpenAI-compatible MiniCPM5-1B endpoint can be selected via env vars;
 MLX is an optional alternate path for Apple Silicon developers, not the product
 default.
 
+## Quick start
+
+Requires [mise](https://mise.jdx.dev/) (pins Python + [uv](https://docs.astral.sh/uv/)) and
+`llama-server` on PATH. Weights download once on first serve (~657 MB).
+
+```bash
+# 1) Toolchain
+curl https://mise.run | sh    # or: brew install mise
+mise trust && mise install    # python 3.12 + uv from mise.toml
+
+# 2) Package
+mise run sync                 # uv sync → .venv + editable install
+mise run doctor               # optional sanity check
+
+# 3) llama-server (not vendored in git)
+brew install llama.cpp        # macOS bottle; or build https://github.com/ggerganov/llama.cpp
+
+# 4) Serve MiniCPM5-1B GGUF (downloads Q4_K_M into ~/.cache/deku/models)
+mise run serve
+```
+
+Smoke (second terminal, with the server up):
+
+```bash
+mise run smoke
+# or:
+curl -s http://127.0.0.1:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"MiniCPM5-1B","messages":[{"role":"user","content":"Say hi in one word."}],"max_tokens":16,"chat_template_kwargs":{"enable_thinking":false}}'
+```
+
+Without mise, the same path works with uv alone:
+
+```bash
+uv sync
+uv run deku-serve
+uv run python -m unittest discover -s tests
+```
+
+| Env | Role | Default |
+| --- | --- | --- |
+| `DEKU_URL` | API base (no `/v1`) | `http://127.0.0.1:8080` |
+| `DEKU_MODEL` | Model id sent to the server | `MiniCPM5-1B` |
+| `DEKU_API_KEY` | Optional bearer | empty |
+| `DEKU_MODEL_DIR` | GGUF cache directory | `~/.cache/deku/models` |
+| `DEKU_HOST` / `DEKU_PORT` | Bind address for `deku-serve` | `127.0.0.1` / `8080` |
+
+| Task | What it does |
+| --- | --- |
+| `mise run sync` | `uv sync` (lockfile + editable `deku`) |
+| `mise run test` | unit tests (no GPU / no weights) |
+| `mise run doctor` | PATH / Python / GGUF readiness |
+| `mise run serve` | ensure GGUF → `llama-server --jinja` |
+| `mise run smoke` | one `llm.complete()` against `DEKU_URL` |
+
+Tests (no model required):
+
+```bash
+mise run test
+```
+
 ## Intended capabilities (target)
 
 - Public short facts (`web_search`)
@@ -53,12 +114,14 @@ default.
 ## Planned layout
 
 ```
-deku/           # Python package: llm client, route, tools, orchestrate
-bin/deku-serve  # thin wrapper: ensure GGUF → llama-server
-bin/deku        # CLI: ask / dispatch
+deku/           # Python package: llm client (+ route/tools later), serve helpers
+bin/deku-serve  # thin wrapper: ensure GGUF → llama-server --jinja
+bin/deku        # CLI: ask / dispatch (Phase 2)
 tests/          # unittest
 docs/           # architecture, roadmap, decisions
 evals/          # small fixed demo smokes only (not a research warehouse)
+mise.toml       # python / uv pins + tasks (sync, test, serve, doctor)
+uv.lock         # reproducible installs
 ```
 
 ## Docs

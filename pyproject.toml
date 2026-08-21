@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "deku"
+version = "0.1.0"
+description = "MiniCPM5-1B–oriented local task harness (OpenAI-compatible client + tools)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Kenya Nara" }]
+keywords = [
+  "minicpm",
+  "llama.cpp",
+  "gguf",
+  "agent",
+  "harness",
+  "openai-compatible",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+  "huggingface_hub>=0.26",
+]
+
+[project.urls]
+Homepage = "https://github.com/penta2himajin/deku"
+Documentation = "https://github.com/penta2himajin/deku#readme"
+Issues = "https://github.com/penta2himajin/deku/issues"
+
+[project.scripts]
+deku-serve = "deku.serve:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["deku"]
+
+[tool.uv]
+package = true
