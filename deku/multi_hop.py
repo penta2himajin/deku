@@ -28,7 +28,8 @@ PRONOUN = re.compile(
 ANAPHORA_CUES = re.compile(
     r"(?i)\b("
     r"born|birthplace|age|nationality|founded|died|spouse|wife|husband|"
-    r"headquarters?|headquartered|based|population|released|release date"
+    r"headquarters?|headquartered|based|population|released|release date|"
+    r"published"
     r")\b"
 )
 IT_REF = re.compile(r"(?i)\b(it|its|this|that)\b")
@@ -80,36 +81,41 @@ def bind_core(prior_query: str, prior_core: str, followup: str) -> str:
     """Choose the entity to inject into a dependent follow-up.
 
     Pronoun *he/she* usually want the prior answer (a person). *it/its* + founded /
-    released / headquarters / population usually want the org/place named in the
-    prior question — never a bare numeric core.
+    released / published / headquarters / population usually want the org/place /
+    work named in the prior question — never a bare numeric core.
     """
     fu = followup or ""
     core = (prior_core or "").strip()
     if IT_REF.search(fu) and re.search(
-        r"(?i)\b(founded|released|headquarters?|headquartered|population|based)\b",
+        r"(?i)\b(founded|released|published|headquarters?|headquartered|"
+        r"population|based)\b",
         fu,
     ):
         for pat in (
             r"(?i)who founded (.+?)\??\s*$",
+            r"(?i)who wrote (.+?)\??\s*$",
             r"(?i)(?:ceo|president|prime minister) of (.+?)\??\s*$",
             r"(?i)capital of (.+?)\??\s*$",
             r"(?i)population of (.+?)\??\s*$",
-            r"(?i)when (?:was|were) (?:the )?(.+?) released",
+            r"(?i)when (?:was|were) (?:the )?(.+?) founded",
+            r"(?i)when (?:was|were) (?:the )?(.+?) (?:released|published)",
             r"(?i)where (?:is|are) (.+?) (?:headquartered|based)",
             r"(?i)headquarters (?:city |of )?(.+?)\??\s*$",
         ):
             m = re.search(pat, prior_query or "")
             if m:
                 return m.group(1).strip().rstrip("?.")
-        # Never bind a numeric measurement into "its population/founded…".
-        if re.fullmatch(r"[\d.,]+(?:\s*(?:million|billion|thousand))?", core, flags=re.I):
+        # Never bind a year / count into who-founded / its-population follow-ups.
+        if re.fullmatch(
+            r"[\d.,]+(?:\s*(?:million|billion|thousand))?", core, flags=re.I
+        ):
             return core  # still wrong; caller should not need_prior — defensive
     if PRONOUN.search(fu):
         # Prefer person-shaped prior core; strip template wrappers if present.
         m = re.search(
             r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", core
         )
-        if m and not re.search(r"(?i)\b(million|billion|inc|corp)\b", m.group(1)):
+        if m and not re.search(r"(?i)\b(million|billion|inc|corp|current)\b", m.group(1)):
             return m.group(1)
     return core
 
@@ -193,6 +199,19 @@ def rewrite_followup(sub: str, prior_core: str) -> str:
         )
         return _normalize_sub(out)
     if IT_REF.search(s) and ANAPHORA_CUES.search(s):
+        # Prefer shapes that expand_search / templates already handle.
+        if re.search(r"(?i)\bpopulation\b", s):
+            return _normalize_sub(f"What is the population of {core}?")
+        if re.search(r"(?i)\bheadquarters?\b|\bheadquartered\b|\bbased\b", s):
+            return _normalize_sub(f"Where is {core} headquartered?")
+        if re.search(r"(?i)\bpublished\b", s):
+            return _normalize_sub(f"When was {core} published?")
+        if re.search(r"(?i)\bwho\b", s) and re.search(r"(?i)\bfounded\b", s):
+            return _normalize_sub(f"Who founded {core}?")
+        if re.search(r"(?i)\bwhen\b", s) and re.search(r"(?i)\bfounded\b", s):
+            return _normalize_sub(f"When was {core} founded?")
+        if re.search(r"(?i)\breleased\b", s):
+            return _normalize_sub(f"When was {core} released?")
         out = re.sub(r"\b(it|this|that)\b", core, s, count=1, flags=re.I)
         out = re.sub(r"\b(its)\b", f"{core}'s", out, count=1, flags=re.I)
         return _normalize_sub(out)
@@ -206,9 +225,24 @@ def rewrite_followup(sub: str, prior_core: str) -> str:
     return _normalize_sub(out)
 
 
+def _reject_office_glue(name: str | None) -> str | None:
+    """Drop cores that are office titles, not people (e.g. Current Pope)."""
+    n = (name or "").strip()
+    if not n:
+        return None
+    if re.search(
+        r"(?i)^(current|the)\s+(pope|president|prime minister|emperor|ceo)\b",
+        n,
+    ):
+        return None
+    if re.fullmatch(r"(?i)current pope|pope|president|prime minister", n):
+        return None
+    return n
+
+
 def core_from_result(got) -> str | None:
     detail = getattr(got, "detail", None) or {}
-    core = (detail.get("core") or "").strip()
+    core = _reject_office_glue((detail.get("core") or "").strip())
     if core and len(core.split()) <= 6:
         return core
     ans = (getattr(got, "answer", None) or "").strip()
@@ -217,9 +251,9 @@ def core_from_result(got) -> str | None:
         r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s*\.?\s*$", ans
     )
     if m:
-        return m.group(1)
+        return _reject_office_glue(m.group(1))
     m = re.search(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", ans)
-    return m.group(1) if m else None
+    return _reject_office_glue(m.group(1) if m else None)
 
 
 def _core_from_result(got) -> str | None:

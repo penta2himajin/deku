@@ -41,8 +41,8 @@ MESSAGES = {
         "I cannot resolve vague references like \"this part\"."
     ),
     "age": (
-        "I cannot compute ages. "
-        "Ask for a birth date instead (for example: What is Tim Cook's birthday?)."
+        "I cannot answer vague age questions (for example \"how old is he?\"). "
+        "Ask with a full name: How old is Tim Cook?"
     ),
     "out_of_scope": (
         "I cannot handle that request with the available tools. "
@@ -84,6 +84,11 @@ DEEP = re.compile(
     r")"
 )
 AGE = re.compile(r"(?i)\bhow old\b")
+# Named person age is a searchable fact; vague / anaphoric age stays refused.
+AGE_NAMED = re.compile(
+    r"(?i)^\s*how old (?:is|are) "
+    r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\??\s*$"
+)
 
 # Path-scoped git history without a concrete path (deixis or bare "that changed").
 _PATH_HISTORY = re.compile(
@@ -118,7 +123,8 @@ def classify(question: str) -> str:
     if CHITCHAT.search(q):
         return "chitchat"
     if AGE.search(q):
-        return "age"
+        if not AGE_NAMED.match(q):
+            return "age"
     if DEEP.search(q):
         return "deep_reasoning"
     if is_underspecified_path(q):
@@ -131,15 +137,16 @@ def message(reason: str) -> str:
 
 
 def is_hard_refuse(question: str) -> bool:
-    """True when hard_route should pick refuse (math/code/chitchat/deep).
+    """True when hard_route should pick refuse (math/code/chitchat/deep/vague age).
 
     Underspecified path asks go to clarify instead of refuse.
+    Named \"How old is Tim Cook?\" is allowed through to web_search.
     """
     q = question or ""
     return bool(
         MATH.search(q)
         or CODE.search(q)
         or CHITCHAT.search(q)
-        or AGE.search(q)
+        or (AGE.search(q) and not AGE_NAMED.match(q))
         or DEEP.search(q)
     )

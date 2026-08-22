@@ -6,8 +6,10 @@ HTML is stripped to text; MiniCPM extract / compose / abstain reuse web_search.
 from __future__ import annotations
 
 import html
+import json
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from typing import Callable
@@ -81,6 +83,47 @@ def fetch_url(url: str, *, timeout: float = 20.0) -> bytes:
     if len(data) > MAX_BYTES:
         data = data[:MAX_BYTES]
     return data
+
+
+def _wiki_title_from_url(url: str) -> str | None:
+    m = re.search(
+        r"(?i)https?://(?:[a-z]+\.)?wikipedia\.org/wiki/([^?#]+)", url or ""
+    )
+    if not m:
+        return None
+    title = urllib.parse.unquote(m.group(1).replace("_", " ")).strip()
+    return title or None
+
+
+def fetch_wikipedia_fallback(url: str) -> bytes | None:
+    """When /wiki/Title 404s, try the REST summary extract as HTML-ish text."""
+    title = _wiki_title_from_url(url)
+    if not title:
+        return None
+    api = (
+        "https://en.wikipedia.org/api/rest_v1/page/summary/"
+        + urllib.parse.quote(title.replace(" ", "_"))
+    )
+    try:
+        raw = json.loads(
+            urllib.request.urlopen(
+                urllib.request.Request(
+                    api, headers={"User-Agent": USER_AGENT, "Accept": "application/json"}
+                ),
+                timeout=20,
+            ).read()
+        )
+    except Exception:
+        return None
+    extract_text = (raw.get("extract") or "").strip()
+    if len(extract_text.split()) < 8:
+        return None
+    page_title = (raw.get("title") or title).strip()
+    html_doc = (
+        f"<html><head><title>{html.escape(page_title)}</title></head>"
+        f"<body><p>{html.escape(extract_text)}</p></body></html>"
+    ).encode("utf-8")
+    return html_doc
 
 
 def to_document(url: str, text: str, *, limit: int = MAX_DOC_CHARS) -> str:
@@ -172,6 +215,24 @@ def run(
     fetcher = fetch or fetch_url
     try:
         raw = fetcher(target)
+    except urllib.error.HTTPError as e:
+        if e.code == 404 and fetch is None:
+            fb = fetch_wikipedia_fallback(target)
+            if fb:
+                raw = fb
+                out.detail["fetch_fallback"] = "wikipedia_rest_summary"
+            else:
+                out.status = "not_found"
+                out.answer = "That page was not found."
+                out.detail["abstain_reason"] = "not_found"
+                out.detail["error"] = str(e)
+                return out
+        else:
+            out.status = "fetch_error"
+            out.answer = ws.CANNOT_ANSWER
+            out.detail["abstain_reason"] = "fetch_error"
+            out.detail["error"] = str(e)
+            return out
     except (urllib.error.URLError, TimeoutError, OSError, ValueError) as e:
         out.status = "fetch_error"
         out.answer = ws.CANNOT_ANSWER

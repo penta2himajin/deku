@@ -27,6 +27,7 @@ TOOL_OK = frozenset({
 DIR_WORDS = cues.DIR_WORDS
 GIT_CUES = re.compile(
     r"(?i)\b(last commit|git (?:log|show|blame|history)|who (?:changed|committed)|"
+    r"who authored|authored (?:the )?(?:last )?commit|author of|"
     r"when was .+ committed|commit message|git history|"
     r"commit (?:that )?(?:changed|touched|modified))\b"
 )

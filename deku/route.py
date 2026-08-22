@@ -36,6 +36,7 @@ DIR_WORDS = cues.DIR_WORDS
 DIR_IDENT = re.compile(r"\b(?:PREFILL|MAX_TOKENS|[A-Z][A-Z0-9]*_[A-Z0-9_]+)\b")
 GIT_CUES = re.compile(
     r"(?i)\b(last commit|git (?:log|show|blame|history)|who (?:changed|committed)|"
+    r"who authored|authored (?:the )?(?:last )?commit|author of|"
     r"when was .+ committed|commit message|git history|"
     r"commit (?:that )?(?:changed|touched|modified))\b"
 )
