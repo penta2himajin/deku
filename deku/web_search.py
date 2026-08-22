@@ -267,6 +267,36 @@ def has_person_name(text: str) -> bool:
     return False
 
 
+_ROLE_OBJECT_TITLE = re.compile(
+    r"(?i)\b("
+    r"official\s+car|official\s+residence|state\s+car|"
+    r"\bcar\b|\bresidence\b|\bbuilding\b|\bpalace\b|"
+    r"list of|premiership of|presidency of|"
+    r"office of the|official residence"
+    r")\b"
+)
+
+
+def looks_role_object_title(title: str) -> bool:
+    """True for office artefacts (cars, residences, lists) mistaken for people."""
+    t = (title or "").strip()
+    if not t:
+        return False
+    if re.search(r"(?i)^list of\b", t):
+        return True
+    if re.search(r"(?i)\b(official car|official residence|state car)\b", t):
+        return True
+    if re.search(r"(?i)\b(car|residence|building|palace)\s*\(", t):
+        return True
+    if re.search(
+        r"(?i)\b(prime minister|president|ceo|minister).{0,40}\b"
+        r"(car|residence|building|palace)\b",
+        t,
+    ):
+        return True
+    return False
+
+
 def wiki_page_summary(title: str) -> str:
     """Wikipedia lead extract for a title (MediaWiki extracts, REST fallback)."""
     if not (title or "").strip():
@@ -871,6 +901,8 @@ def rank_hits_scored(
             score -= 1.5
         if want_ceo and re.search(r"(?i)\b(ceo|chief executive)\b", text):
             score += 3.0
+            if looks_role_object_title(title):
+                score -= 20.0
             place_m = re.search(
                 r"(?i)\b(?:ceo|chief executive(?: officer)?)\s+of\s+(.+?)\??\s*$",
                 question or "",
@@ -939,6 +971,8 @@ def rank_hits_scored(
                 score += 8.0
         want_president = bool(re.search(r"(?i)\bpresident\b", question or ""))
         if want_president:
+            if looks_role_object_title(title):
+                score -= 20.0
             place_m = re.search(r"(?i)\bpresident of (.+?)\??\s*$", question or "")
             place = (place_m.group(1).strip() if place_m else "")
             if (
@@ -984,6 +1018,8 @@ def rank_hits_scored(
                 if looks_current_office(text):
                     score += 6.0
         if want_pm:
+            if looks_role_object_title(title):
+                score -= 20.0
             place_m = re.search(r"(?i)\bprime minister of (.+?)\??\s*$", question or "")
             place = (place_m.group(1).strip() if place_m else "")
             if (
@@ -1287,6 +1323,8 @@ def office_core_from_hit(question: str, hit: dict, document: str) -> str | None:
     ):
         return None
     title = (hit.get("title") or "").strip()
+    if looks_role_object_title(title):
+        return None
     if re.search(r"(?i)^current\s+(pope|president|prime minister)\b", title):
         return None
     for pat in (r"(?i)^presidency of (.+)$", r"(?i)^premiership of (.+)$"):
@@ -1305,7 +1343,15 @@ def office_core_from_hit(question: str, hit: dict, document: str) -> str | None:
     if has_person_name(title) and re.search(
         r"(?i)\b(president|ceo|prime minister|pope|emperor)\b", document or ""
     ):
-        return title
+        # Require the person name to appear in a body sentence, not title alone.
+        bare = re.sub(r"\s*\([^)]*\)\s*", " ", title).strip()
+        body = "\n".join(
+            ln for ln in (document or "").splitlines()
+            if ln.strip() and ln.strip().casefold() != title.casefold()
+        )
+        if bare and extract.norm(bare) in extract.norm(body):
+            return title
+        return None
     return None
 
 

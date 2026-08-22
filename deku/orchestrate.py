@@ -98,6 +98,9 @@ def _looks_joined(question: str) -> bool:
         return True
     if GIT_CUES.search(q) and DIFF_CUES.search(q) and re.search(r"(?i)\band\b", q):
         return True
+    # Prefer multi_hop.decompose over a parallel join regex (one decomposer).
+    if mh.looks_multi_hop(q):
+        return True
     return False
 
 
@@ -341,6 +344,7 @@ def run(
     hops: list[tuple[str, str]] = []
     docs: list[str] = []
     rewritten: list[str] = []
+    failed: list[dict] = []
     prior_core: str | None = None
     prior_query: str | None = None
     dependent = built.dependent
@@ -350,6 +354,9 @@ def run(
             bind = mh.bind_core(prior_query or "", prior_core, step.query)
             q = mh.rewrite_followup(q, bind)
             dependent = True
+        elif step.bind_prior and not prior_core:
+            failed.append({"query": q, "tool": step.tool, "reason": "no_prior_core"})
+            continue
         rewritten.append(q)
         got = _run_one(
             step.tool, q, root=root, seed=seed + i, runners=runners,
@@ -357,23 +364,53 @@ def run(
         out.hits.extend(getattr(got, "hits", None) or [])
         docs.append(getattr(got, "document", None) or "")
         if getattr(got, "status", None) != "ok" or not (getattr(got, "answer", None) or "").strip():
-            out.status = "cannot_answer"
-            out.answer = (
-                f"I cannot answer from the available sources "
-                f"(failed on: {q} via {step.tool})"
-            )
-            out.detail["failed_sub"] = q
-            out.detail["failed_tool"] = step.tool
-            out.detail["sub_status"] = getattr(got, "status", None)
-            out.detail["rewritten"] = rewritten
-            out.detail["dependent"] = dependent
-            return out
+            failed.append({
+                "query": q,
+                "tool": step.tool,
+                "status": getattr(got, "status", None),
+            })
+            # Dependent chain cannot continue without this hop's core.
+            if built.dependent or step.bind_prior:
+                if not hops:
+                    out.status = "cannot_answer"
+                    out.answer = (
+                        f"I cannot answer from the available sources "
+                        f"(failed on: {q} via {step.tool})"
+                    )
+                    out.detail["failed_sub"] = q
+                    out.detail["failed_tool"] = step.tool
+                    out.detail["sub_status"] = getattr(got, "status", None)
+                    out.detail["rewritten"] = rewritten
+                    out.detail["dependent"] = dependent
+                    out.detail["failed_steps"] = failed
+                    return out
+                break
+            continue
         prior_core = mh.core_from_result(got) or prior_core
         prior_query = q
         hops.append((q, got.answer.strip()))
     out.detail["rewritten"] = rewritten
     out.detail["dependent"] = dependent
+    out.detail["failed_steps"] = failed
     out.document = "\n\n".join(d for d in docs if d)
-    out.answer = mh.integrate(hops, dependent=dependent)
-    out.status = "ok"
+    if not hops:
+        out.status = "cannot_answer"
+        fail_q = (failed[0]["query"] if failed else question)
+        fail_tool = (failed[0].get("tool") if failed else "unknown")
+        out.answer = (
+            f"I cannot answer from the available sources "
+            f"(failed on: {fail_q} via {fail_tool})"
+        )
+        if failed:
+            out.detail["failed_sub"] = failed[0]["query"]
+            out.detail["failed_tool"] = failed[0].get("tool")
+        return out
+    body = mh.integrate(hops, dependent=dependent and not failed)
+    if failed:
+        miss = "; ".join(f["query"] for f in failed)
+        out.answer = f"{body}\n\n(could not answer: {miss})"
+        out.status = "partial"
+    else:
+        out.answer = body
+        out.status = "ok"
     return out

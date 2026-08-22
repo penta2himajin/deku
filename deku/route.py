@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from deku import normalize as nz
 from deku import refuse as refuse_mod
 from deku import route_cues as cues
 from deku import url_read as ur
@@ -88,7 +89,7 @@ def hard_route(question: str) -> Decision | None:
     """High-confidence cues that must not be overridden by Needle."""
     from deku import normalize as nz
 
-    q = nz.normalize_question(question)[0]
+    q = nz.prepare_question(question)[0]
     url = extract_url(q)
     if url:
         return Decision(tool="url_read", url=url, detail={"cue": "url"})
@@ -137,9 +138,7 @@ def hard_route(question: str) -> Decision | None:
 
 def rule_route(question: str) -> Decision:
     """Deterministic tool choice. Hard cues first, then soft lexical cues."""
-    from deku import normalize as nz
-
-    q, nd = nz.normalize_question(question)
+    q, nd = nz.prepare_question(question)
     hard = hard_route(q)
     if hard:
         hard.detail = {**nd, **hard.detail, "router": "rule"}
@@ -267,7 +266,7 @@ def dispatch(
     """Route then run the chosen tool (stubs for git/diff until implemented)."""
     from deku import normalize as nz
 
-    q, nd = nz.normalize_question(question)
+    q, nd = nz.prepare_question(question)
     dec = route(q, router=router)
     out = Routed(
         tool=dec.tool,

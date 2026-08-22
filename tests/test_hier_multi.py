@@ -107,8 +107,9 @@ class TestMultiHop(unittest.TestCase):
             "Who is the CEO of Apple and where is Apple headquartered?",
             web_run=fake_run,
         )
-        self.assertEqual(got.status, "cannot_answer")
-        self.assertIn("failed on", (got.answer or "").lower())
+        self.assertEqual(got.status, "partial")
+        self.assertIn("Tim Cook", got.answer or "")
+        self.assertIn("could not answer", (got.answer or "").lower())
 
     def test_rewrite_followup_pronoun(self):
         self.assertEqual(

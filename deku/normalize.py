@@ -84,3 +84,17 @@ def normalize_question(question: str) -> tuple[str, dict]:
 
     detail["untranslated"] = True
     return q, detail
+
+
+def prepare_question(question: str) -> tuple[str, dict]:
+    """JA normalize then English canonicalize — single front-door for routing."""
+    from deku import canonicalize as can
+
+    q, d1 = normalize_question(question)
+    q, d2 = can.canonicalize_question(q)
+    detail = {**d1, **d2}
+    if d1.get("original") and "original" not in d2:
+        detail["original"] = d1["original"]
+    elif d2.get("canonicalized") and "original" not in detail:
+        detail["original"] = (question or "").strip()
+    return q, detail

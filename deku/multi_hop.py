@@ -143,7 +143,11 @@ class Result:
 
 
 SPLIT = re.compile(
-    r"(?i)\s+(?:and\s+)?(?=(?:who|what|when|where|which)\b)"
+    r"\s+(?:and\s+|then\s+|also,?\s+)?(?=(?:who|what|when|where|which)\b)"
+    r"|\s*;\s*(?=(?:who|what|when|where|which)\b)"
+    r"|,\s+then\s+(?=(?:who|what|when|where|which)\b)"
+    r"|\?\s*also,?\s+(?=(?:who|what|when|where|which|is|are|was|were)\b)",
+    re.I,
 )
 
 
@@ -168,19 +172,19 @@ def decompose(question: str) -> list[str]:
     q = (question or "").strip().rstrip("?")
     if not q:
         return []
-    # "Who is X? What is Y?" style
-    parts = re.split(r"\?\s+", q)
+    # "Who is X? What is Y?" / "Who is X? Also, …"
+    parts = re.split(r"\?\s+(?:also,?\s+)?", q, flags=re.I)
     parts = [p.strip() for p in parts if p.strip()]
     if len(parts) >= 2:
         return [_normalize_sub(p) for p in parts[:3]]
-    # "Who is X and what is Y?"
+    # "Who is X and what is Y?" / "… then what …"
     bits = SPLIT.split(q)
     bits = [b.strip(" ,;") for b in bits if b.strip(" ,;")]
     if len(bits) < 2:
         return [_normalize_sub(question)]
     out = []
     for b in bits[:3]:
-        if not re.match(r"(?i)^(who|what|when|where|which)\b", b):
+        if not re.match(r"(?i)^(who|what|when|where|which|is|are)\b", b):
             # First clause may already include the wh-word.
             if not out:
                 out.append(_normalize_sub(b))
