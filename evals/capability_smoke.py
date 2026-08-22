@@ -159,10 +159,17 @@ CASES: list[Case] = [
     # ---- multi-hop catalog ------------------------------------------------
     Case(
         "hop:independent",
-        "Who is the CEO of Apple and what is the capital of France?",
+        "Who is the CEO of Apple and where is Apple headquartered?",
         expect_tool="multi_hop",
         expect_status="ok",
-        answer_must_match=r"(?s)Tim Cook.*Paris|Paris.*Tim Cook",
+        answer_must_match=r"(?s)Tim Cook.*(Cupertino|California)|(Cupertino|California).*Tim Cook",
+    ),
+    Case(
+        "hop:unrelated_refused",
+        "Who is the CEO of Apple and what is the capital of France?",
+        expect_tool="refuse",
+        expect_status="refused",
+        answer_must_match=r"cannot|one kind|same kind",
     ),
     Case(
         "hop:dependent_founded",

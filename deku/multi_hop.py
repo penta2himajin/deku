@@ -81,22 +81,35 @@ def bind_core(prior_query: str, prior_core: str, followup: str) -> str:
     """Choose the entity to inject into a dependent follow-up.
 
     Pronoun *he/she* usually want the prior answer (a person). *it/its* + founded /
-    released / published / headquarters / population usually want the org/place /
-    work named in the prior question — never a bare numeric core.
+    released / published / headquarters usually want the org/place / work named in
+    the prior question — never a bare numeric core. *its population* after a
+    capital question prefers the capital city (prior answer) when available.
     """
     fu = followup or ""
     core = (prior_core or "").strip()
+    if IT_REF.search(fu) and re.search(r"(?i)\bpopulation\b", fu):
+        # Capital-of X → its population: bind the capital city answer.
+        if re.search(r"(?i)\bcapital of\b", prior_query or "") and core:
+            if not re.fullmatch(
+                r"[\d.,]+(?:\s*(?:million|billion|thousand))?", core, flags=re.I
+            ):
+                return core
+        for pat in (
+            r"(?i)population of (.+?)\??\s*$",
+            r"(?i)capital of (.+?)\??\s*$",
+        ):
+            m = re.search(pat, prior_query or "")
+            if m and not re.search(r"(?i)\bcapital of\b", prior_query or ""):
+                return m.group(1).strip().rstrip("?.")
     if IT_REF.search(fu) and re.search(
         r"(?i)\b(founded|released|published|headquarters?|headquartered|"
-        r"population|based)\b",
+        r"based)\b",
         fu,
     ):
         for pat in (
             r"(?i)who founded (.+?)\??\s*$",
             r"(?i)who wrote (.+?)\??\s*$",
             r"(?i)(?:ceo|president|prime minister) of (.+?)\??\s*$",
-            r"(?i)capital of (.+?)\??\s*$",
-            r"(?i)population of (.+?)\??\s*$",
             r"(?i)when (?:was|were) (?:the )?(.+?) founded",
             r"(?i)when (?:was|were) (?:the )?(.+?) (?:released|published)",
             r"(?i)where (?:is|are) (.+?) (?:headquartered|based)",
@@ -105,7 +118,7 @@ def bind_core(prior_query: str, prior_core: str, followup: str) -> str:
             m = re.search(pat, prior_query or "")
             if m:
                 return m.group(1).strip().rstrip("?.")
-        # Never bind a year / count into who-founded / its-population follow-ups.
+        # Never bind a year / count into who-founded follow-ups.
         if re.fullmatch(
             r"[\d.,]+(?:\s*(?:million|billion|thousand))?", core, flags=re.I
         ):

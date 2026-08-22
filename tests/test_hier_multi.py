@@ -74,19 +74,21 @@ class TestMultiHop(unittest.TestCase):
     def test_run_composes(self):
         def fake_run(q, **kw):
             r = type("R", (), {})()
-            if "Apple" in q:
+            if "CEO" in q or ("Apple" in q and "headquarter" not in q.lower()):
                 r.status, r.answer, r.document, r.hits = "ok", "Tim Cook.", "doc", []
             else:
-                r.status, r.answer, r.document, r.hits = "ok", "Paris.", "doc2", []
+                r.status, r.answer, r.document, r.hits = (
+                    "ok", "Cupertino.", "doc2", []
+                )
             return r
 
         got = mh.run(
-            "Who is the CEO of Apple and what is the capital of France?",
+            "Who is the CEO of Apple and where is Apple headquartered?",
             web_run=fake_run,
         )
         self.assertEqual(got.status, "ok")
         self.assertIn("Tim Cook", got.answer or "")
-        self.assertIn("Paris", got.answer or "")
+        self.assertIn("Cupertino", got.answer or "")
 
     def test_failed_hop_abstains(self):
         def fake_run(q, **kw):
@@ -94,7 +96,7 @@ class TestMultiHop(unittest.TestCase):
             r.hits = []
             r.document = ""
             r.detail = {}
-            if "Apple" in q:
+            if "CEO" in q:
                 r.status, r.answer = "ok", "Tim Cook."
                 r.detail = {"core": "Tim Cook"}
             else:
@@ -102,7 +104,7 @@ class TestMultiHop(unittest.TestCase):
             return r
 
         got = mh.run(
-            "Who is the CEO of Apple and what is the capital of France?",
+            "Who is the CEO of Apple and where is Apple headquartered?",
             web_run=fake_run,
         )
         self.assertEqual(got.status, "cannot_answer")
@@ -153,16 +155,16 @@ class TestMultiHop(unittest.TestCase):
         def fake_run(q, **kw):
             r = type("R", (), {})()
             r.hits, r.document, r.detail = [], "", {}
-            if "Apple" in q:
+            if "CEO" in q:
                 r.status, r.answer = "ok", "The CEO of Apple is Tim Cook."
                 r.detail = {"core": "Tim Cook"}
             else:
-                r.status, r.answer = "ok", "The capital of France is Paris."
-                r.detail = {"core": "Paris"}
+                r.status, r.answer = "ok", "Apple is headquartered in Cupertino."
+                r.detail = {"core": "Cupertino"}
             return r
 
         got = mh.run(
-            "Who is the CEO of Apple and what is the capital of France?",
+            "Who is the CEO of Apple and where is Apple headquartered?",
             web_run=fake_run,
         )
         self.assertEqual(got.status, "ok")

@@ -236,7 +236,7 @@ class TestAbstain(unittest.TestCase):
         self.assertFalse(ws.should_abstain(
             question="Who is the CEO of Apple?",
             doc="Tim Cook\nCEO of Apple since 2011.\n",
-            score=3, core="Tim Cook"))
+            score=5, core="Tim Cook"))
 
     def test_doc_must_be_on_topic(self):
         from deku import extract

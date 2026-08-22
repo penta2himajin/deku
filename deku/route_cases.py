@@ -49,8 +49,13 @@ ROUTE_CASES: list[tuple[str, str, str]] = [
     ("What is the capital of France?", "web_search", "soft"),
     ("What company is Alphabet?", "web_search", "soft"),
     (
-        "Who is the CEO of Apple and what is the capital of France?",
+        "Who is the CEO of Apple and where is Apple headquartered?",
         "multi_hop",
+        "soft",
+    ),
+    (
+        "Who is the CEO of Apple and what is the capital of France?",
+        "refuse",
         "soft",
     ),
     (

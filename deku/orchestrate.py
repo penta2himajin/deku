@@ -109,7 +109,12 @@ def mixed_tools_without_plan(question: str) -> bool:
         return False
     tools = {classify_clause(c) for c in _clauses(question)}
     tools.discard(None)
-    return len(tools) >= 2
+    if len(tools) >= 2:
+        return True
+    # Same tool but no catalog plan (e.g. unrelated independent web facts).
+    if len(tools) == 1 and len(_clauses(question)) >= 2:
+        return True
+    return False
 
 
 def build_git_and_diff(question: str) -> Plan | None:
@@ -161,6 +166,78 @@ def build_git_pair(question: str) -> Plan | None:
     return Plan(plan_id="git_pair", steps=steps, dependent=False)
 
 
+def _clause_topics(clause: str) -> set[str]:
+    """Rough proper-noun / ALLCAPS topics for relatedness checks."""
+    s = clause or ""
+    out = set()
+    for m in re.finditer(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", s):
+        out.add(extract_norm_topic(m.group(1)))
+    # Single capitalized tokens (Apple, France, Tesla) excluding wh-words.
+    skip = {
+        "who", "what", "when", "where", "which", "the", "a", "an", "how",
+        "why", "is", "are", "was", "were", "of", "and", "or",
+    }
+    for m in re.finditer(r"\b([A-Z][a-z]{1,})\b", s):
+        tok = m.group(1)
+        if tok.casefold() in skip:
+            continue
+        out.add(tok.casefold())
+    for m in re.finditer(r"\b([A-Z]{2,}[A-Z0-9_]*)\b", s):
+        if m.group(1).casefold() not in skip:
+            out.add(m.group(1).casefold())
+    for m in re.finditer(
+        r"(?i)\b(?:of|for)\s+(?:the\s+)?([A-Za-z][A-Za-z0-9.-]+)\b", s
+    ):
+        out.add(m.group(1).casefold())
+    return {t for t in out if t}
+
+
+def extract_norm_topic(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "").strip()).casefold()
+
+
+def clauses_related(clauses: list[str]) -> bool:
+    """True when joined clauses share a topic or use anaphora."""
+    if len(clauses) < 2:
+        return True
+    if any(mh.needs_prior(c) for c in clauses[1:]):
+        return True
+    topics = [_clause_topics(c) for c in clauses]
+    base = topics[0]
+    if not base:
+        return False
+    for other in topics[1:]:
+        if other & base:
+            return True
+        # Shared stem: Apple / Apple Inc
+        for a in base:
+            for b in other:
+                if a in b or b in a:
+                    return True
+    return False
+
+
+def build_git_and_web(question: str) -> Plan | None:
+    """One git-history clause and one web-fact clause joined by and."""
+    if not _looks_joined(question):
+        return None
+    clauses = _clauses(question)
+    if len(clauses) < 2:
+        return None
+    tools = [classify_clause(c) for c in clauses]
+    if tools.count("git_search") != 1 or tools.count("web_search") != 1:
+        return None
+    if any(t not in ("git_search", "web_search") for t in tools):
+        return None
+    steps = [
+        Step(tool=t, query=c, bind_prior=False)
+        for c, t in zip(clauses, tools) if t
+    ]
+    if len(steps) != 2:
+        return None
+    return Plan(plan_id="git_and_web", steps=steps, dependent=False)
+
+
 def build_web_pair(question: str) -> Plan | None:
     if not _looks_joined(question):
         return None
@@ -171,6 +248,9 @@ def build_web_pair(question: str) -> Plan | None:
     if not all(t == "web_search" for t in tools):
         return None
     dependent = any(mh.needs_prior(c) for c in clauses[1:])
+    if not dependent and not clauses_related(clauses):
+        # Unrelated independent web facts are out of scope for this harness.
+        return None
     steps = []
     for i, c in enumerate(clauses[:3]):
         steps.append(
@@ -186,6 +266,7 @@ def build_web_pair(question: str) -> Plan | None:
 # First match wins — more specific patterns before generic web.
 BUILDERS: tuple[Callable[[str], Plan | None], ...] = (
     build_git_and_diff,
+    build_git_and_web,
     build_git_pair,
     build_dir_pair,
     build_web_pair,

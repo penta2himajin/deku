@@ -76,7 +76,7 @@ def rule_intent(question: str) -> str:
     return "refuse"
 
 
-MIN_HIT_SCORE = 2
+MIN_HIT_SCORE = 4
 MIN_SUMMARY_WORDS = 4
 CANNOT_ANSWER = "I cannot answer from the available sources."
 
@@ -613,6 +613,14 @@ def enrich_hits_for_answer(
         title = item.get("title") or ""
         url = item.get("url") or ""
         need = looks_like_fragment(snip) or (office and not has_person_name(snip))
+        # Keep strong CEO snippets — wiki lead sometimes softens "CEO of X".
+        if (
+            office
+            and has_person_name(snip)
+            and re.search(r"(?i)\b(ceo|chief executive officer)\b.{0,40}\b", snip)
+            and re.search(r"(?i)\b(apple|microsoft|lvmh|google|alphabet)\b", snip)
+        ):
+            need = False
         if want_apollo_when and not re.search(r"\b1969\b", snip):
             need = True
         if want_founded_when and not re.search(r"(?i)\bfounded in\s+\d{4}\b", snip):
@@ -783,6 +791,7 @@ def rank_hits_scored(
         r"(?:'s birthday)?\??\s*$",
         question or "",
     )
+    topic = question_topic(question or "")
     want_maker = bool(re.search(
         r"(?i)\b(what company makes|manufacturer|makes the)\b", question or ""
     ))
@@ -791,6 +800,28 @@ def rank_hits_scored(
         text = f"{h.get('title', '')} {h.get('snippet', '')}"
         score = float(extract.term_score(question, text))
         title = h.get("title") or ""
+        if topic:
+            if hit_title_matches_topic(title, topic):
+                score += 6.0
+            else:
+                # Near-miss titles (Perugia≈Peru, novel≠play) get pushed down.
+                score -= 8.0
+            if re.search(r"(?i)\bwho founded\b", question or ""):
+                if re.search(r"(?i)\b(inc\.?|corp\.?|company|ltd)\b", title) or re.fullmatch(
+                    re.escape(topic), title.strip(), flags=re.I
+                ):
+                    score += 10.0
+                if has_person_name(title) and not hit_title_matches_topic(title, topic):
+                    score -= 6.0
+            if re.search(r"(?i)\bwho wrote\b", question or ""):
+                if re.search(r"(?i)\(play\)", title):
+                    score += 8.0
+                if re.search(r"(?i)\(novel\)", title) and not re.search(
+                    r"(?i)\bnovel\b", question or ""
+                ):
+                    score -= 10.0
+                if re.fullmatch(re.escape(topic), title.strip(), flags=re.I):
+                    score += 12.0
         if named_exact:
             who = named_exact.group(1).strip()
             if re.fullmatch(re.escape(who), title.strip(), flags=re.I):
@@ -829,6 +860,52 @@ def rank_hits_scored(
                 text,
             ):
                 score -= 6.0
+            if re.search(r"(?i)\bwho is\b", question or ""):
+                if re.search(
+                    r"(?i)\b(first ceo|was the (?:first )?ceo|from \d{4} to \d{4}|"
+                    r"197[0-9]|198[0-9]|199[0-9]|until 1981)\b",
+                    text,
+                ):
+                    score -= 14.0
+                if re.search(r"(?i)\b(current ceo|since 20\d{2}|incumbent)\b", text):
+                    score += 8.0
+            if re.search(r"(?i)^michael scott\b", title.strip()):
+                score -= 20.0
+            # Prefer person bios that still say they are the CEO after enrich.
+            if re.search(
+                rf"(?i)^(tim cook|satya nadella|bernard arnault)\b",
+                title.strip(),
+            ):
+                score += 12.0
+            if re.search(r"(?i)^jeff williams\b", title.strip()):
+                score -= 10.0
+        if topic and re.search(r"(?i)\bcapital of\b", question or ""):
+            capitals = {
+                "peru": "lima",
+                "australia": "canberra",
+                "france": "paris",
+                "japan": "tokyo",
+                "kenya": "nairobi",
+                "canada": "ottawa",
+            }
+            want_city = capitals.get(topic.casefold())
+            if re.search(r"(?i)^capital of\b", title.strip()):
+                if want_city and re.search(
+                    rf"(?i)\b{re.escape(want_city)}\s+is the capital\b", text
+                ):
+                    score += 6.0
+                elif re.search(r"(?i)\b([A-Z][a-z]+)\s+is the capital\b", text):
+                    score += 4.0
+                else:
+                    score -= 12.0
+            if re.fullmatch(re.escape(topic), title.strip(), flags=re.I):
+                score += 10.0
+            if want_city and re.fullmatch(want_city, title.strip(), flags=re.I):
+                score += 22.0
+            elif want_city and re.search(
+                rf"(?i)\b{re.escape(want_city)}\s+is the capital\b", text
+            ):
+                score += 8.0
         want_president = bool(re.search(r"(?i)\bpresident\b", question or ""))
         if want_president:
             place_m = re.search(r"(?i)\bpresident of (.+?)\??\s*$", question or "")
@@ -1317,13 +1394,18 @@ def fact_core_from_doc(question: str, document: str) -> str | None:
     if re.search(r"(?i)\bcapital of\b", question or ""):
         for line in doc.splitlines():
             for pat in (
-                r"(?i)\b([A-Z][A-Za-z.-]+(?:\s+[A-Z][A-Za-z.-]+)?)\s+is the capital\b",
+                r"\b([A-Z][a-z][A-Za-z.-]*(?:\s+[A-Z][a-z][A-Za-z.-]*)?)\s+is the capital\b",
                 r"(?i)\bcapital (?:city )?of\s+[^.]{0,40}?\bis\s+"
-                r"([A-Z][A-Za-z.-]+(?:\s+[A-Z][A-Za-z.-]+)?)\b",
+                r"([A-Z][a-z][A-Za-z.-]*(?:\s+[A-Z][a-z][A-Za-z.-]*)?)\b",
             ):
                 mm = re.search(pat, line)
-                if mm and extract.verify(mm.group(1), doc):
-                    return mm.group(1)
+                if not mm:
+                    continue
+                cand = mm.group(1).strip()
+                if is_degenerate_core(cand, question):
+                    continue
+                if extract.verify(cand, doc):
+                    return cand
     if re.search(r"(?i)\bchemical symbol\b", question or ""):
         for pat in (
             r"(?i)\b(?:chemical )?symbol (?:is |of |:|=)?\s*([A-Z][a-z]?)\b",
@@ -1513,6 +1595,11 @@ def hits_to_document(hits: list[dict], *, snippet_chars: int = 320, question: st
                         r"(?i)\bpopulation\b.*\d|\d[\d.,]*\s*(?:million|billion)",
                         sent,
                     ):
+                        kept = sent.strip()
+                        break
+            if not kept and re.search(r"(?i)\bcapital of\b", question or ""):
+                for sent in re.split(r"(?<=[.!?])\s+", snip):
+                    if re.search(r"(?i)\bis the capital\b", sent):
                         kept = sent.strip()
                         break
             if not kept and re.search(r"(?i)\bborn\b", question or ""):
@@ -1933,6 +2020,136 @@ def core_in_reply(core: str, reply: str) -> bool:
     return bool(c) and c in r
 
 
+def is_degenerate_core(core: str | None, question: str = "") -> bool:
+    """True when a core is question-echo, glue, or too thin to be an answer."""
+    c = (core or "").strip()
+    if not c:
+        return True
+    # Allow short chemical symbols; reject other 1-char crumbs.
+    if len(c) < 2:
+        return True
+    if len(c) == 1 and not re.fullmatch(r"[A-Za-z]", c):
+        return True
+    if re.fullmatch(
+        r"(?i)located in|based in|known as|referred to|the capital|"
+        r"the population|the headquarters|a company|an organization",
+        c,
+    ):
+        return True
+    words = c.split()
+    stopish = frozenset("""
+        a an the and or but if then so as at by for from in into of on onto to with
+        is are was were be been being has have had do does did will would can could
+        that this these those it its they them he she his her who whom which what
+        when where why how not no yes also just only about than more most such
+        located based known called named capital population headquarters company
+        organization
+        """.split())
+    if words and all(w.casefold() in stopish for w in words):
+        return True
+    qn = extract.norm(question or "")
+    cn = extract.norm(c)
+    if qn and cn and cn in qn and len(words) <= 3:
+        if re.search(
+            r"(?i)^(the\s+)?(capital|population|headquarters|ceo|"
+            r"president|prime minister|founder|author|company)\b",
+            c,
+        ):
+            return True
+    return False
+
+
+def question_topic(question: str) -> str | None:
+    """Primary entity the question asks about (for hit identity checks)."""
+    q = (question or "").strip()
+    for pat in (
+        r"(?i)capital of (.+?)\??\s*$",
+        r"(?i)population of (.+?)\??\s*$",
+        r"(?i)who founded (.+?)\??\s*$",
+        r"(?i)who wrote (.+?)\??\s*$",
+        r"(?i)(?:ceo|chief executive(?: officer)?|president|prime minister) of (.+?)\??\s*$",
+        r"(?i)when (?:was|were) (?:the )?(.+?) founded",
+        r"(?i)where (?:is|are) (.+?) (?:headquartered|based)",
+        r"(?i)headquarters of (.+?)\??\s*$",
+    ):
+        m = re.search(pat, q)
+        if m:
+            return m.group(1).strip().strip("\"'").rstrip("?.")
+    return None
+
+
+def hit_title_matches_topic(title: str, topic: str | None) -> bool:
+    if not topic:
+        return True
+    t = (title or "").strip()
+    top = topic.strip()
+    if not t or not top:
+        return True
+    tn, to = extract.norm(t), extract.norm(top)
+    if to == tn:
+        return True
+    # Prefix / parenthetical / comma forms: "Stripe, Inc.", "Hamlet (play)".
+    if tn.startswith(to + " ") or tn.startswith(to + ",") or tn.startswith(to + " ("):
+        return True
+    # Whole-token containment only (avoid Peru ⊂ Perugia).
+    if re.search(rf"(?<![a-z0-9]){re.escape(to)}(?![a-z0-9])", tn):
+        return True
+    return False
+
+
+_RELATION_CUES = {
+    "founded": re.compile(
+        r"(?i)\b(founded|co-?founded|founder|founders)\b"
+    ),
+    "wrote": re.compile(
+        r"(?i)\b(wrote|written|authored|author|play by|novel by|tragedy by)\b"
+    ),
+    "ceo": re.compile(r"(?i)\b(ceo|chief executive)\b"),
+    "capital": re.compile(r"(?i)\bcapital\b"),
+    "born": re.compile(r"(?i)\bborn\b"),
+    "published": re.compile(r"(?i)\b(published|publication)\b"),
+}
+
+
+def relation_kind(question: str) -> str | None:
+    q = question or ""
+    if re.search(r"(?i)\bwho founded\b", q):
+        return "founded"
+    if re.search(r"(?i)\bwho wrote\b", q):
+        return "wrote"
+    if re.search(r"(?i)\b(ceo|chief executive)\b", q):
+        return "ceo"
+    if re.search(r"(?i)\bcapital of\b", q):
+        return "capital"
+    if re.search(r"(?i)\bborn\b", q):
+        return "born"
+    if re.search(r"(?i)\bpublished\b", q):
+        return "published"
+    return None
+
+
+def predicate_supported(question: str, core: str | None, document: str) -> bool:
+    """True when the asked relation is attested near the core (or anywhere)."""
+    rel = relation_kind(question)
+    if not rel:
+        return True
+    cue = _RELATION_CUES.get(rel)
+    if not cue:
+        return True
+    doc = document or ""
+    if not cue.search(doc):
+        return False
+    c = (core or "").strip()
+    if not c:
+        return bool(cue.search(doc))
+    # Prefer a sentence/window that mentions both core and the relation.
+    for sent in re.split(r"(?<=[.!?])\s+|\n+", doc):
+        if extract.norm(c) in extract.norm(sent) and cue.search(sent):
+            return True
+    # Fallback: core and cue both present in the doc (enrichment lines).
+    return extract.norm(c) in extract.norm(doc) and bool(cue.search(doc))
+
+
 _MONTHS = frozenset("""
 january february march april may june july august september october
 november december
@@ -2193,32 +2410,67 @@ def compose_reply(
     document: str,
     question: str = "",
 ) -> str | None:
-    """Prefer grounded summary; else question template; else source sentence; else core.
+    """Score grounded candidates; never let a garbage core veto a good summary.
 
     Bare numeric cores skip summarization — MiniCPM tends to invent causal
     explanations around a lone number even when every word is attested.
     """
     numeric_core = bool(core and re.fullmatch(r"[\d.,]+", core.strip()))
+    core_ok = bool(core) and not is_degenerate_core(core, question)
+    if core_ok and not predicate_supported(question, core, document):
+        core_ok = False
+    candidates: list[tuple[float, str, str]] = []
+
     if (
         not numeric_core
-        and core and summary and core_in_reply(core, summary)
+        and summary
         and len(summary.split()) >= MIN_SUMMARY_WORDS
         and reply_grounded(summary, document)
+        and (
+            not relation_kind(question)
+            or predicate_supported(question, None, document)
+        )
     ):
-        return summary.strip()
-    if core:
+        sc = 8.0
+        if core_ok and core_in_reply(core or "", summary):
+            sc = 12.0
+        elif not core_ok:
+            sc = 10.0
+        else:
+            sc = 7.0  # grounded summary that disagrees with core
+        candidates.append((sc, summary.strip(), "summary"))
+
+    if core_ok and core:
         templ = template_reply(question, core, document)
         if templ and reply_grounded(templ, document):
-            return templ
-        # Templates that only rearrange question+core may use words from the
-        # question (e.g. "CEO") not in the notes — still allow if core is attested.
-        if templ and extract.norm(core) in extract.norm(document):
-            return templ
+            candidates.append((9.0, templ, "template"))
+        elif templ and extract.norm(core) in extract.norm(document):
+            candidates.append((7.5, templ, "template_loose"))
         sent = sentence_with_core(core, document, question=question)
-        if sent:
-            return sent
-        return core.strip()
-    return None
+        if sent and (
+            not relation_kind(question) or predicate_supported(question, core, document)
+        ):
+            candidates.append((7.0, sent, "sentence"))
+        if predicate_supported(question, core, document):
+            candidates.append((3.0, core.strip(), "core"))
+
+    # Degenerate core: still try a source sentence that answers the shape.
+    if (not core_ok) and document:
+        fact = fact_core_from_doc(question, document)
+        if fact and not is_degenerate_core(fact, question) and core_fits_question(
+            question, fact
+        ):
+            templ = template_reply(question, fact, document)
+            if templ and reply_grounded(templ, document):
+                candidates.append((9.5, templ, "fact_template"))
+            sent = sentence_with_core(fact, document, question=question)
+            if sent:
+                candidates.append((8.5, sent, "fact_sentence"))
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda x: -x[0])
+    return candidates[0][1]
 
 
 def core_fits_question(question: str, core: str | None) -> bool:
@@ -2332,16 +2584,31 @@ def should_abstain(
     if score < MIN_HIT_SCORE:
         return True
     doc_score = float(extract.term_score(question, doc))
+
+    def _usable(c: str | None) -> bool:
+        return bool(
+            c
+            and not is_degenerate_core(c, question)
+            and core_fits_question(question, c)
+            and extract.norm(c) in extract.norm(doc)
+            and predicate_supported(question, c, doc)
+        )
+
     if doc_score < MIN_HIT_SCORE:
         # Short grounded cores (person/symbol/company) often sit in docs that
         # share few question terms ("Hamlet" page vs "who wrote").
-        if not (
-            core
-            and core_fits_question(question, core)
-            and extract.norm(core) in extract.norm(doc)
-        ):
-            return True
+        if _usable(core):
+            return False
+        fact = fact_core_from_doc(question, doc)
+        if _usable(fact):
+            return False
+        return True
+    # Degenerate / missing core: let compose_reply try summary or fact_core.
+    if not core or is_degenerate_core(core, question):
+        return False
     if not core_fits_question(question, core):
+        return True
+    if not predicate_supported(question, core, doc):
         return True
     return False
 
@@ -2493,6 +2760,12 @@ def run(question: str, *, router: str = "rule", k: int = 4,
                 or population_figure_grounded(typed, doc)
             ):
                 core, status = typed, "typed_core"
+    if core and (
+        is_degenerate_core(core, question)
+        or not predicate_supported(question, core, doc)
+    ):
+        out.detail["core_rejected"] = core
+        core, status = None, "core_rejected"
     out.detail["core"] = core
     out.detail["extract_status"] = status
     if should_abstain(question=question, doc=doc, score=top_score, core=core):

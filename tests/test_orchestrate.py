@@ -9,11 +9,17 @@ from deku import route as rt
 class TestSelectBuild(unittest.TestCase):
     def test_web_independent(self):
         plan = orch.select_and_build(
-            "Who is the CEO of Apple and what is the capital of France?"
+            "Who is the CEO of Apple and where is Apple headquartered?"
         )
         self.assertIsNotNone(plan)
         self.assertEqual(plan.plan_id, "web_independent")
         self.assertEqual([s.tool for s in plan.steps], ["web_search", "web_search"])
+
+    def test_unrelated_web_pair_no_plan(self):
+        plan = orch.select_and_build(
+            "Who is the CEO of Apple and what is the capital of France?"
+        )
+        self.assertIsNone(plan)
 
     def test_web_dependent(self):
         plan = orch.select_and_build(

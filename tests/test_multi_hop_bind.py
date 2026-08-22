@@ -36,10 +36,10 @@ class TestBindCore(unittest.TestCase):
             "Paris",
             "what is its population?",
         )
-        self.assertEqual(bind, "France")
+        self.assertEqual(bind, "Paris")
         self.assertEqual(
             mh.rewrite_followup("what is its population?", bind),
-            "What is the population of France?",
+            "What is the population of Paris?",
         )
 
     def test_its_headquarters_rewrites_to_headquartered(self):
