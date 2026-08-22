@@ -132,12 +132,13 @@ class TestMinHitScore(unittest.TestCase):
 
 
 class TestRelatedMultiHop(unittest.TestCase):
-    def test_unrelated_dual_web_refused(self):
+    def test_unrelated_dual_web_plans_independent(self):
         q = "Who is the CEO of Apple and what is the boiling point of water?"
         plan = orch.select_and_build(q)
-        self.assertIsNone(plan)
+        self.assertIsNotNone(plan)
+        self.assertEqual(plan.plan_id, "web_independent")
         got = rt.rule_route(q)
-        self.assertEqual(got.tool, "refuse")
+        self.assertEqual(got.tool, "multi_hop")
 
     def test_related_dependent_still_plans(self):
         q = "Who is the CEO of Microsoft and where was he born?"

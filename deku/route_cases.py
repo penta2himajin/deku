@@ -55,7 +55,7 @@ ROUTE_CASES: list[tuple[str, str, str]] = [
     ),
     (
         "Who is the CEO of Apple and what is the capital of France?",
-        "refuse",
+        "multi_hop",
         "soft",
     ),
     (

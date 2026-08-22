@@ -73,6 +73,13 @@ def classify_clause(clause: str) -> str | None:
     c = clause or ""
     if refuse_mod.is_hard_refuse(c):
         return None
+    # Opinion / evaluative tails are not retrieval clauses.
+    if re.search(
+        r"(?i)\b(good|bad|better|worse|should|ought|"
+        r"opinion|think|feel|worth it|a good thing)\b",
+        c,
+    ):
+        return None
     # More specific first.
     if DIFF_CUES.search(c):
         return "diff_search"
@@ -114,7 +121,7 @@ def mixed_tools_without_plan(question: str) -> bool:
     tools.discard(None)
     if len(tools) >= 2:
         return True
-    # Same tool but no catalog plan (e.g. unrelated independent web facts).
+    # Same tool but no catalog plan (e.g. web+opinion tail after classify).
     if len(tools) == 1 and len(_clauses(question)) >= 2:
         return True
     return False
@@ -251,9 +258,8 @@ def build_web_pair(question: str) -> Plan | None:
     if not all(t == "web_search" for t in tools):
         return None
     dependent = any(mh.needs_prior(c) for c in clauses[1:])
-    if not dependent and not clauses_related(clauses):
-        # Unrelated independent web facts are out of scope for this harness.
-        return None
+    # Independent web lookups may concern different entities; numbered answers
+    # are fine. Relatedness only affects bind_prior / dependent labelling.
     steps = []
     for i, c in enumerate(clauses[:3]):
         steps.append(

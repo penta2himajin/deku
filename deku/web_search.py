@@ -258,8 +258,16 @@ List Tenure History Presidency
 
 
 def has_person_name(text: str) -> bool:
-    """Heuristic: Cap Cap bigram that is not an obvious place/title phrase."""
-    for m in re.finditer(r"\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\b", text or ""):
+    """Heuristic: Cap Cap bigram that is not an obvious place/title/corp phrase."""
+    t = text or ""
+    if re.search(
+        r"(?i)\b(inc\.?|corp\.?|corporation|ltd\.?|limited|llc|gmbh|"
+        r"entertainment|motors?|company|group|holdings|interactive|"
+        r"industries|technologies|systems)\b",
+        t,
+    ):
+        return False
+    for m in re.finditer(r"\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\b", t):
         a, b = m.group(1), m.group(2)
         if a in _NON_PERSON or b in _NON_PERSON:
             continue
@@ -336,6 +344,34 @@ def is_predecessor_core(core: str | None, document: str, question: str = "") -> 
     return True
 
 
+def _strip_article(s: str) -> str:
+    return re.sub(r"(?i)^(the|a|an)\s+", "", (s or "").strip()).strip()
+
+
+# Polities whose English Wikipedia office titles keep a leading "the".
+_ARTICLED_POLITIES = frozenset({
+    "united kingdom", "united states", "united states of america",
+    "netherlands", "philippines", "united arab emirates",
+    "czech republic", "dominican republic", "bahamas", "maldives",
+    "marshall islands", "solomon islands", "seychelles", "gambia",
+    "sudan", "congo", "republic of the congo", "central african republic",
+})
+
+
+def wiki_office_place(place: str) -> str:
+    """Normalize a polity name for Wikipedia office-page titles."""
+    raw = (place or "").strip().rstrip("?.")
+    bare = _strip_article(raw)
+    if not bare:
+        return raw
+    if bare.casefold() in _ARTICLED_POLITIES or bare.casefold() == "us":
+        if bare.casefold() in ("us", "united states of america"):
+            bare = "United States"
+        # Preserve conventional capitalization from the bare form.
+        return f"the {bare}"
+    return bare
+
+
 def core_echoes_topic(question: str, core: str | None) -> bool:
     """True when the core merely repeats the asked-about org/place entity."""
     c = (core or "").strip()
@@ -350,12 +386,16 @@ def core_echoes_topic(question: str, core: str | None) -> bool:
         )
         if m:
             topic = m.group(1).strip()
-            topic = re.sub(r"(?i)^(the|a|an|current)\s+", "", topic).strip()
     if not topic:
         return False
-    if extract.norm(c) == extract.norm(topic):
+    cn, tn = extract.norm(_strip_article(c)), extract.norm(_strip_article(topic))
+    if not cn or not tn:
+        return False
+    if cn == tn:
         return True
-    if extract.norm(topic) in extract.norm(c) and not has_person_name(c):
+    if tn in cn and not has_person_name(c):
+        return True
+    if cn in tn and not has_person_name(c):
         return True
     return False
 
@@ -370,16 +410,14 @@ def office_page_title(question: str) -> str | None:
         return "Pope"
     if re.search(r"(?i)\bemperor of japan\b|\bemperor\b.*\bjapan\b", q):
         return "Emperor of Japan"
-    m = re.search(r"(?i)\bprime minister of (?:the\s+)?(.+?)\??\s*$", q)
+    m = re.search(r"(?i)\bprime minister of (.+?)\??\s*$", q)
     if m:
-        place = m.group(1).strip().rstrip("?.")
-        place = re.sub(r"(?i)^(the|a|an)\s+", "", place).strip()
+        place = wiki_office_place(m.group(1))
         if place:
             return f"Prime Minister of {place}"
-    m = re.search(r"(?i)\bpresident of (?:the\s+)?(.+?)\??\s*$", q)
+    m = re.search(r"(?i)\bpresident of (.+?)\??\s*$", q)
     if m:
-        place = m.group(1).strip().rstrip("?.")
-        place = re.sub(r"(?i)^(the|a|an)\s+", "", place).strip()
+        place = wiki_office_place(m.group(1))
         if place:
             return f"President of {place}"
     return None
@@ -515,6 +553,115 @@ def wiki_incumbent_from_page(title: str) -> str | None:
     # Drop disambiguation crumbs like "Name (politician)"
     name = re.sub(r"\s*\([^)]*\)\s*$", "", name).strip()
     return name or None
+
+
+def wikidata_search_entity(name: str) -> str | None:
+    """Resolve an org/person label to a Wikidata Q-id (best search hit)."""
+    if not (name or "").strip():
+        return None
+    q = urllib.parse.urlencode({
+        "action": "wbsearchentities",
+        "search": name.strip(),
+        "language": "en",
+        "type": "item",
+        "limit": "1",
+        "format": "json",
+    })
+    try:
+        raw = json.loads(_get(f"https://www.wikidata.org/w/api.php?{q}", timeout=15))
+    except Exception:
+        return None
+    hits = raw.get("search") or []
+    if not hits:
+        return None
+    return (hits[0].get("id") or "").strip() or None
+
+
+def wikidata_entity(qid: str) -> dict | None:
+    if not (qid or "").strip():
+        return None
+    q = urllib.parse.urlencode({
+        "action": "wbgetentities",
+        "ids": qid.strip(),
+        "props": "claims|labels",
+        "languages": "en",
+        "format": "json",
+    })
+    try:
+        raw = json.loads(_get(f"https://www.wikidata.org/w/api.php?{q}", timeout=15))
+    except Exception:
+        return None
+    return ((raw.get("entities") or {}).get(qid.strip())) or None
+
+
+def wikidata_label(qid: str) -> str | None:
+    ent = wikidata_entity(qid)
+    if not ent:
+        return None
+    lab = ((ent.get("labels") or {}).get("en") or {}).get("value")
+    return (lab or "").strip() or None
+
+
+def wikidata_ceo_id_from_entity(entity: dict | None) -> str | None:
+    """Pick current chief executive officer (P169); skip ended tenures."""
+    if not entity:
+        return None
+    claims = (entity.get("claims") or {}).get("P169") or []
+    preferred = []
+    normal = []
+    for claim in claims:
+        if claim.get("rank") == "deprecated":
+            continue
+        # End time qualifier P582 → former CEO.
+        quals = claim.get("qualifiers") or {}
+        if quals.get("P582"):
+            continue
+        snak = (claim.get("mainsnak") or {}).get("datavalue") or {}
+        val = snak.get("value") or {}
+        cid = (val.get("id") if isinstance(val, dict) else None) or ""
+        if not cid:
+            continue
+        if claim.get("rank") == "preferred":
+            preferred.append(cid)
+        else:
+            normal.append(cid)
+    if preferred:
+        return preferred[0]
+    if normal:
+        return normal[0]
+    return None
+
+
+def wikidata_ceo_name(org: str) -> str | None:
+    """Current CEO label for an organization via Wikidata P169."""
+    org = (org or "").strip()
+    if not org:
+        return None
+    candidates = [
+        f"{org} Motor Corporation",
+        f"{org} Motor Company",
+        f"{org}, Inc.",
+        f"{org} Inc.",
+        org,
+    ]
+    # De-dupe while preserving order.
+    seen: set[str] = set()
+    for cand in candidates:
+        key = cand.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        qid = wikidata_search_entity(cand)
+        if not qid:
+            continue
+        ent = wikidata_entity(qid)
+        ceo_id = wikidata_ceo_id_from_entity(ent)
+        if not ceo_id:
+            continue
+        label = wikidata_label(ceo_id)
+        if label:
+            return label
+    return None
 
 
 def wiki_birth_place(title: str) -> str | None:
@@ -2698,9 +2845,15 @@ def core_fits_question(question: str, core: str | None) -> bool:
         r"founded|wrote)\b|\bwho\s+is\s+the\s+(ceo|prime minister|president)\b",
         question or "",
     ):
-        if not has_person_name(c) and not re.search(r"(?i)^pope\s+\S+", c):
-            if not re.fullmatch(r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+", c):
-                return False
+        if has_person_name(c) or re.search(r"(?i)^pope\s+\S+", c):
+            pass
+        elif re.fullmatch(r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+", c):
+            pass
+        elif re.fullmatch(r"[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:\s+[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+)*", c):
+            # Mononym / surname / latin-extended (Pichai, Naruhito, Kōji Satō).
+            pass
+        else:
+            return False
     if re.search(r"(?i)\bwho founded\b", question or ""):
         # Founders are people (or "A and B"), not dates / years.
         if re.search(r"\d{4}", c) and not re.search(
@@ -2921,6 +3074,53 @@ def run(question: str, *, router: str = "rule", k: int = 4,
                         out.detail["incumbent_fetched"] = True
     if office_core and is_predecessor_core(office_core, doc, question):
         office_core = None
+    # Corporate CEO via Wikidata P169 when Wikipedia leads omit the name.
+    if (
+        re.search(r"(?i)\bwho\b", question or "")
+        and re.search(r"(?i)\b(ceo|chief executive)\b", question or "")
+    ):
+        org = question_topic(question) or ""
+        org = _strip_article(org)
+        if org:
+            ceo = wikidata_ceo_name(org)
+            if ceo:
+                out.detail["wikidata_ceo"] = ceo
+                picked = False
+                for _sc, h in scored:
+                    title_h = (h.get("title") or "").strip()
+                    if re.fullmatch(re.escape(ceo), title_h, flags=re.I) or (
+                        extract.norm(ceo) in extract.norm(title_h)
+                        and (has_person_name(title_h) or re.fullmatch(r"[A-Z][a-z]+", title_h))
+                    ):
+                        top = h
+                        top_score = max(float(_sc), float(MIN_HIT_SCORE) + 2.0)
+                        out.detail["top_score"] = top_score
+                        doc = hits_to_document([top], question=question)
+                        out.document = doc
+                        doc_score = float(extract.term_score(question, doc))
+                        out.detail["doc_score"] = doc_score
+                        office_core = ceo
+                        picked = True
+                        break
+                if not picked:
+                    bio = wiki_page_summary(ceo)
+                    if bio and len(bio.split()) >= 8:
+                        top = {
+                            "title": ceo,
+                            "snippet": bio[:500],
+                            "url": (
+                                "https://en.wikipedia.org/wiki/"
+                                + urllib.parse.quote(ceo.replace(" ", "_"))
+                            ),
+                        }
+                        top_score = max(float(top_score), float(MIN_HIT_SCORE) + 2.0)
+                        out.detail["top_score"] = top_score
+                        doc = hits_to_document([top], question=question)
+                        out.document = doc
+                        doc_score = float(extract.term_score(question, doc))
+                        out.detail["doc_score"] = doc_score
+                        office_core = ceo
+                        out.detail["ceo_fetched"] = True
     if top_score < MIN_HIT_SCORE:
         out.answer, out.status = CANNOT_ANSWER, "cannot_answer"
         out.detail["abstain_reason"] = "weak_or_off_topic_hit"
@@ -2981,11 +3181,22 @@ def run(question: str, *, router: str = "rule", k: int = 4,
     # product brands) often share few question terms but still hold the answer.
     fact = fact_core_from_doc(question, doc)
     inc_core = preferred_incumbent_core(question, doc)
+    wd_ceo = (out.detail.get("wikidata_ceo") or "").strip() or None
     # Acronym "What is NASA?" — prefer lexical expansion over MiniCPM cores.
     if fact and re.search(r"(?i)^\s*what is\s+[A-Z]{2,8}\??\s*$", question or ""):
         core, status = fact, "doc_core"
     elif inc_core and core_fits_question(question, inc_core):
         core, status = inc_core, "incumbent_core"
+    elif (
+        wd_ceo
+        and not core_echoes_topic(question, wd_ceo)
+        and (
+            out.detail.get("ceo_fetched")
+            or extract.norm(wd_ceo) in extract.norm(doc)
+            or extract.norm(_strip_article(wd_ceo)) in extract.norm(doc)
+        )
+    ):
+        core, status = wd_ceo, "wikidata_ceo"
     elif (
         fact
         and re.search(r"(?i)\b(headquarters?|headquartered|based|population|published)\b", question or "")
@@ -3035,16 +3246,21 @@ def run(question: str, *, router: str = "rule", k: int = 4,
         is_degenerate_core(core, question)
         or core_echoes_topic(question, core)
         or is_predecessor_core(core, doc, question)
-        or not predicate_supported(question, core, doc)
+        or (
+            not predicate_supported(question, core, doc)
+            and not (status == "wikidata_ceo" and out.detail.get("ceo_fetched"))
+        )
     ):
         out.detail["core_rejected"] = core
         core, status = None, "core_rejected"
     out.detail["core"] = core
     out.detail["extract_status"] = status
     if should_abstain(question=question, doc=doc, score=top_score, core=core):
-        out.answer, out.status = CANNOT_ANSWER, "cannot_answer"
-        out.detail["abstain_reason"] = "no_grounded_core"
-        return out
+        # Fetched Wikidata CEO bios may use ASCII vs macron spelling mismatch.
+        if not (status == "wikidata_ceo" and out.detail.get("ceo_fetched") and core):
+            out.answer, out.status = CANNOT_ANSWER, "cannot_answer"
+            out.detail["abstain_reason"] = "no_grounded_core"
+            return out
     summary = minicpm_summarize(question, doc, seed=seed)
     out.detail["summary"] = summary
     if summary and core and core_in_reply(core, summary) and not reply_grounded(summary, doc):

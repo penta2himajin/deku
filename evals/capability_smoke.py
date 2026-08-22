@@ -165,11 +165,11 @@ CASES: list[Case] = [
         answer_must_match=r"(?s)Tim Cook.*(Cupertino|California)|(Cupertino|California).*Tim Cook",
     ),
     Case(
-        "hop:unrelated_refused",
+        "hop:independent_cross_entity",
         "Who is the CEO of Apple and what is the capital of France?",
-        expect_tool="refuse",
-        expect_status="refused",
-        answer_must_match=r"cannot|one kind|same kind",
+        expect_tool="multi_hop",
+        expect_status="ok",
+        answer_must_match=r"(?s)(Tim Cook|Cook).*(Paris)|Paris.*(Tim Cook|Cook)",
     ),
     Case(
         "hop:dependent_founded",
