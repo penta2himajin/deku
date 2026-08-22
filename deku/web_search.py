@@ -270,21 +270,25 @@ def has_person_name(text: str) -> bool:
 _ROLE_OBJECT_TITLE = re.compile(
     r"(?i)\b("
     r"official\s+car|official\s+residence|state\s+car|"
-    r"\bcar\b|\bresidence\b|\bbuilding\b|\bpalace\b|"
-    r"list of|premiership of|presidency of|"
-    r"office of the|official residence"
+    r"list of|office of the"
     r")\b"
 )
 
 
-def looks_role_object_title(title: str) -> bool:
-    """True for office artefacts (cars, residences, lists) mistaken for people."""
+def looks_role_object_title(title: str, question: str = "") -> bool:
+    """True for office artefacts (cars, residences, lists) mistaken for people.
+
+    When the question itself asks about the artefact (car / residence / …),
+    do not demote — the page is the intended answer.
+    """
     t = (title or "").strip()
     if not t:
         return False
-    if re.search(r"(?i)^list of\b", t):
+    if re.search(r"(?i)\b(car|residence|building|palace|vehicle)\b", question or ""):
+        return False
+    if _ROLE_OBJECT_TITLE.search(t):
         return True
-    if re.search(r"(?i)\b(official car|official residence|state car)\b", t):
+    if re.search(r"(?i)^list of\b", t):
         return True
     if re.search(r"(?i)\b(car|residence|building|palace)\s*\(", t):
         return True
@@ -295,6 +299,103 @@ def looks_role_object_title(title: str) -> bool:
     ):
         return True
     return False
+
+
+def is_predecessor_core(core: str | None, document: str, question: str = "") -> bool:
+    """True when `core` only appears as a succeeded / replaced predecessor."""
+    name = (core or "").strip()
+    if not name or len(name.split()) > 6:
+        return False
+    if not re.search(
+        r"(?i)\b(prime minister|president|ceo|pope|emperor|who is)\b",
+        question or "",
+    ):
+        return False
+    doc = document or ""
+    if not re.search(re.escape(name), doc, flags=re.I):
+        return False
+    if not re.search(
+        rf"(?i)\b(succeeding|succeeded|replacing|replaced|preceded by)\s+"
+        rf"{re.escape(name)}\b",
+        doc,
+    ):
+        return False
+    first = (doc.strip().splitlines() or [""])[0]
+    if re.search(
+        rf"(?i)^(premiership|presidency)\s+of\s+{re.escape(name)}\b",
+        first,
+    ):
+        return False
+    # Subject attestation must attach to this name (not a neighbour sentence).
+    if re.search(
+        rf"(?i)\b{re.escape(name)}(?:'s)?\s+"
+        rf"(?:has served as|tenure as|is the (?:current )?(?:prime minister|president))\b",
+        doc,
+    ):
+        return False
+    return True
+
+
+def core_echoes_topic(question: str, core: str | None) -> bool:
+    """True when the core merely repeats the asked-about org/place entity."""
+    c = (core or "").strip()
+    if not c:
+        return False
+    topic = question_topic(question or "")
+    if not topic:
+        m = re.search(
+            r"(?i)\b(?:ceo|chief executive(?: officer)?|president|"
+            r"prime minister|capital|population)\s+of\s+(.+?)\??\s*$",
+            question or "",
+        )
+        if m:
+            topic = m.group(1).strip()
+            topic = re.sub(r"(?i)^(the|a|an|current)\s+", "", topic).strip()
+    if not topic:
+        return False
+    if extract.norm(c) == extract.norm(topic):
+        return True
+    if extract.norm(topic) in extract.norm(c) and not has_person_name(c):
+        return True
+    return False
+
+
+def office_page_title(question: str) -> str | None:
+    """Wikipedia office-page title for a present-tense office question."""
+    q = question or ""
+    # Object questions about cars/residences are not officeholder lookups.
+    if re.search(r"(?i)\b(car|residence|building|palace|vehicle)\b", q):
+        return None
+    if re.search(r"(?i)\bpope\b", q) and re.search(r"(?i)\bwho\b", q):
+        return "Pope"
+    if re.search(r"(?i)\bemperor of japan\b|\bemperor\b.*\bjapan\b", q):
+        return "Emperor of Japan"
+    m = re.search(r"(?i)\bprime minister of (?:the\s+)?(.+?)\??\s*$", q)
+    if m:
+        place = m.group(1).strip().rstrip("?.")
+        place = re.sub(r"(?i)^(the|a|an)\s+", "", place).strip()
+        if place:
+            return f"Prime Minister of {place}"
+    m = re.search(r"(?i)\bpresident of (?:the\s+)?(.+?)\??\s*$", q)
+    if m:
+        place = m.group(1).strip().rstrip("?.")
+        place = re.sub(r"(?i)^(the|a|an)\s+", "", place).strip()
+        if place:
+            return f"President of {place}"
+    return None
+
+
+def preferred_incumbent_core(question: str, document: str) -> str | None:
+    """Incumbent from the office page when attested in the working document."""
+    title = office_page_title(question or "")
+    if not title:
+        return None
+    name = wiki_incumbent_from_page(title)
+    if not name:
+        return None
+    if extract.norm(name) in extract.norm(document or ""):
+        return name
+    return None
 
 
 def wiki_page_summary(title: str) -> str:
@@ -901,7 +1002,7 @@ def rank_hits_scored(
             score -= 1.5
         if want_ceo and re.search(r"(?i)\b(ceo|chief executive)\b", text):
             score += 3.0
-            if looks_role_object_title(title):
+            if looks_role_object_title(title, question=question or ""):
                 score -= 20.0
             place_m = re.search(
                 r"(?i)\b(?:ceo|chief executive(?: officer)?)\s+of\s+(.+?)\??\s*$",
@@ -971,7 +1072,7 @@ def rank_hits_scored(
                 score += 8.0
         want_president = bool(re.search(r"(?i)\bpresident\b", question or ""))
         if want_president:
-            if looks_role_object_title(title):
+            if looks_role_object_title(title, question=question or ""):
                 score -= 20.0
             place_m = re.search(r"(?i)\bpresident of (.+?)\??\s*$", question or "")
             place = (place_m.group(1).strip() if place_m else "")
@@ -1018,7 +1119,7 @@ def rank_hits_scored(
                 if looks_current_office(text):
                     score += 6.0
         if want_pm:
-            if looks_role_object_title(title):
+            if looks_role_object_title(title, question=question or ""):
                 score -= 20.0
             place_m = re.search(r"(?i)\bprime minister of (.+?)\??\s*$", question or "")
             place = (place_m.group(1).strip() if place_m else "")
@@ -1069,6 +1170,12 @@ def rank_hits_scored(
                     score -= 14.0
                 if looks_current_office(text):
                     score += 6.0
+        # Object questions (car / residence) must not lose to premiership bios.
+        if re.search(r"(?i)\b(official\s+)?(car|residence|vehicle)\b", question or ""):
+            if re.search(r"(?i)\b(car|residence|vehicle)\b", title):
+                score += 18.0
+            if re.search(r"(?i)^(premiership|presidency)\s+of\b", title.strip()):
+                score -= 12.0
         # "What is NASA?" — exact acronym title + definitional lede.
         acr_m = re.search(r"(?i)^\s*what is\s+([A-Z]{2,8})\??\s*$", question or "")
         if acr_m:
@@ -1323,7 +1430,7 @@ def office_core_from_hit(question: str, hit: dict, document: str) -> str | None:
     ):
         return None
     title = (hit.get("title") or "").strip()
-    if looks_role_object_title(title):
+    if looks_role_object_title(title, question=question or ""):
         return None
     if re.search(r"(?i)^current\s+(pope|president|prime minister)\b", title):
         return None
@@ -2143,6 +2250,8 @@ def is_degenerate_core(core: str | None, question: str = "") -> bool:
             c,
         ):
             return True
+    if core_echoes_topic(question, c):
+        return True
     return False
 
 
@@ -2504,6 +2613,10 @@ def compose_reply(
     """
     numeric_core = bool(core and re.fullmatch(r"[\d.,]+", core.strip()))
     core_ok = bool(core) and not is_degenerate_core(core, question)
+    if core_ok and core_echoes_topic(question, core):
+        core_ok = False
+    if core_ok and is_predecessor_core(core, document, question):
+        core_ok = False
     if core_ok and not predicate_supported(question, core, document):
         core_ok = False
     candidates: list[tuple[float, str, str]] = []
@@ -2522,9 +2635,17 @@ def compose_reply(
         if core_ok and core_in_reply(core or "", summary):
             sc = 12.0
         elif not core_ok:
-            sc = 10.0
+            sc = 11.0  # prefer grounded summary over predecessor / echo cores
         else:
             sc = 7.0  # grounded summary that disagrees with core
+        # Prefer summary when it names a different person than a bad core.
+        if (
+            not core_ok
+            and core
+            and has_person_name(summary)
+            and extract.norm(core) not in extract.norm(summary)
+        ):
+            sc = 12.5
         candidates.append((sc, summary.strip(), "summary"))
 
     if core_ok and core:
@@ -2567,8 +2688,19 @@ def core_fits_question(question: str, core: str | None) -> bool:
         return False
     if re.fullmatch(r"(?i)yes|no|true|false", c):
         return False
+    if core_echoes_topic(question, c):
+        return False
     if re.search(r"(?i)\bwho\b", question or "") and re.fullmatch(r"[\d\s./-]+", c):
         return False
+    # "Who is the CEO/PM/…" needs a person-shaped core, not an org echo.
+    if re.search(
+        r"(?i)\bwho\b.+\b(ceo|chief executive|prime minister|president|pope|emperor|"
+        r"founded|wrote)\b|\bwho\s+is\s+the\s+(ceo|prime minister|president)\b",
+        question or "",
+    ):
+        if not has_person_name(c) and not re.search(r"(?i)^pope\s+\S+", c):
+            if not re.fullmatch(r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+", c):
+                return False
     if re.search(r"(?i)\bwho founded\b", question or ""):
         # Founders are people (or "A and B"), not dates / years.
         if re.search(r"\d{4}", c) and not re.search(
@@ -2741,6 +2873,54 @@ def run(question: str, *, router: str = "rule", k: int = 4,
     doc_score = float(extract.term_score(question, doc))
     out.detail["doc_score"] = doc_score
     office_core = office_core_from_hit(question, top, doc)
+    # Prefer the Wikipedia incumbent's person page when present in hits.
+    ot = office_page_title(question)
+    if ot:
+        inc_name = wiki_incumbent_from_page(ot)
+        if inc_name:
+            out.detail["incumbent"] = inc_name
+            picked = False
+            for _sc, h in scored:
+                title_h = (h.get("title") or "").strip()
+                if re.fullmatch(re.escape(inc_name), title_h, flags=re.I) or (
+                    extract.norm(inc_name) in extract.norm(title_h)
+                    and has_person_name(title_h)
+                ):
+                    top = h
+                    top_score = _sc
+                    out.detail["top_score"] = top_score
+                    doc = hits_to_document([top], question=question)
+                    out.document = doc
+                    doc_score = float(extract.term_score(question, doc))
+                    out.detail["doc_score"] = doc_score
+                    office_core = office_core_from_hit(question, top, doc) or inc_name
+                    picked = True
+                    break
+            if not picked:
+                if extract.norm(inc_name) in extract.norm(doc):
+                    office_core = inc_name
+                else:
+                    # Incumbent known but missing from ranked hits — fetch bio.
+                    bio = wiki_page_summary(inc_name)
+                    if bio and len(bio.split()) >= 8:
+                        top = {
+                            "title": inc_name,
+                            "snippet": bio[:500],
+                            "url": (
+                                "https://en.wikipedia.org/wiki/"
+                                + urllib.parse.quote(inc_name.replace(" ", "_"))
+                            ),
+                        }
+                        top_score = max(float(top_score), float(MIN_HIT_SCORE) + 2.0)
+                        out.detail["top_score"] = top_score
+                        doc = hits_to_document([top], question=question)
+                        out.document = doc
+                        doc_score = float(extract.term_score(question, doc))
+                        out.detail["doc_score"] = doc_score
+                        office_core = inc_name
+                        out.detail["incumbent_fetched"] = True
+    if office_core and is_predecessor_core(office_core, doc, question):
+        office_core = None
     if top_score < MIN_HIT_SCORE:
         out.answer, out.status = CANNOT_ANSWER, "cannot_answer"
         out.detail["abstain_reason"] = "weak_or_off_topic_hit"
@@ -2800,9 +2980,12 @@ def run(question: str, *, router: str = "rule", k: int = 4,
     # Low doc_score alone is not enough to abstain yet: short pages (Hamlet,
     # product brands) often share few question terms but still hold the answer.
     fact = fact_core_from_doc(question, doc)
+    inc_core = preferred_incumbent_core(question, doc)
     # Acronym "What is NASA?" — prefer lexical expansion over MiniCPM cores.
     if fact and re.search(r"(?i)^\s*what is\s+[A-Z]{2,8}\??\s*$", question or ""):
         core, status = fact, "doc_core"
+    elif inc_core and core_fits_question(question, inc_core):
+        core, status = inc_core, "incumbent_core"
     elif (
         fact
         and re.search(r"(?i)\b(headquarters?|headquartered|based|population|published)\b", question or "")
@@ -2834,7 +3017,8 @@ def run(question: str, *, router: str = "rule", k: int = 4,
         ):
             core = None
         if (not core or not core_fits_question(question, core)) and office_core:
-            core, status = office_core, "title_core"
+            if not is_predecessor_core(office_core, doc, question):
+                core, status = office_core, "title_core"
         if not core or not core_fits_question(question, core):
             if fact and (
                 not re.search(r"(?i)\bpopulation\b", question or "")
@@ -2849,6 +3033,8 @@ def run(question: str, *, router: str = "rule", k: int = 4,
                 core, status = typed, "typed_core"
     if core and (
         is_degenerate_core(core, question)
+        or core_echoes_topic(question, core)
+        or is_predecessor_core(core, doc, question)
         or not predicate_supported(question, core, doc)
     ):
         out.detail["core_rejected"] = core
