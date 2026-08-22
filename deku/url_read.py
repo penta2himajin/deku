@@ -159,6 +159,63 @@ def lexical_answer(question: str, document: str) -> str | None:
     return best
 
 
+_ERA_MARKERS = re.compile(
+    r"(?i)\b("
+    r"sengoku|heian|edo|meiji|kamakura|nara|muromachi|"
+    r"until\s+\d{4}|in the \d+(?:st|nd|rd|th) century|"
+    r"\d+(?:st|nd|rd|th) century|medieval|ancient|"
+    r"was the (?:imperial )?capital|from \d{4} to \d{4}"
+    r")\b"
+)
+_PRESENT_TENSE = re.compile(r"(?i)\b(is|are|has|have|today)\b")
+
+
+def prefer_coherent_summary_span(document: str, *, max_sents: int = 2) -> str | None:
+    """Pick a short present-tense lead; avoid concatenating distant eras."""
+    lines = []
+    for line in (document or "").split("\n"):
+        s = line.strip()
+        if not s or s.lower().startswith("source:"):
+            continue
+        lines.append(s)
+    if not lines:
+        return None
+    # Drop a bare title line when the next line restates the topic.
+    body = " ".join(lines[1:] if len(lines) > 1 and len(lines[0].split()) <= 4 else lines)
+    sents = [
+        s.strip()
+        for s in re.split(r"(?<=[.!?])\s+", body)
+        if len(s.split()) >= 4
+    ]
+    if not sents:
+        return None
+    modern = [
+        s for s in sents
+        if _PRESENT_TENSE.search(s) and not _ERA_MARKERS.search(s)
+    ]
+    if modern:
+        return " ".join(modern[:max_sents])
+    # Fall back to the first sentence alone (do not stitch eras).
+    return sents[0]
+
+
+def document_mixes_eras(document: str) -> bool:
+    """True when the page has both modern and historical era sentences."""
+    body = " ".join(
+        ln.strip()
+        for ln in (document or "").split("\n")
+        if ln.strip() and not ln.strip().lower().startswith("source:")
+    )
+    sents = [
+        s.strip()
+        for s in re.split(r"(?<=[.!?])\s+", body)
+        if len(s.split()) >= 4
+    ]
+    modern = any(_PRESENT_TENSE.search(s) and not _ERA_MARKERS.search(s) for s in sents)
+    historical = any(_ERA_MARKERS.search(s) for s in sents)
+    return modern and historical
+
+
 def finalize_reply(
     *,
     question: str,
@@ -247,8 +304,17 @@ def run(
         return out
 
     if hs.wants_summary(question or ""):
-        # Prefer a strong lexical lead / template over weak map-reduce prose.
+        # Prefer a temporally coherent lead when the page mixes eras.
         doc_preview = to_document(target, text)
+        if document_mixes_eras(doc_preview):
+            coherent = prefer_coherent_summary_span(doc_preview)
+            if coherent:
+                out.document = doc_preview
+                out.detail["core"] = coherent
+                out.detail["reply_source"] = "coherent_span"
+                out.detail["mode"] = "summarize_coherent"
+                out.answer, out.status = coherent, "ok"
+                return out
         lead = lexical_answer(question, doc_preview)
         if lead and float(extract.term_score(question, lead)) >= 2.0:
             out.document = doc_preview

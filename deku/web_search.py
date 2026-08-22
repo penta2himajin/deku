@@ -771,6 +771,40 @@ def enrich_hits_for_answer(
     return out
 
 
+def looks_historical_office(text: str) -> bool:
+    """True when snippet describes a former / first / dated past office-holder."""
+    t = text or ""
+    if re.search(
+        r"(?i)\b(former|previously served|first ceo|"
+        r"was the (?:first )?(?:ceo|chief executive(?: officer)?|"
+        r"president|prime minister))\b",
+        t,
+    ):
+        return True
+    if re.search(
+        r"(?i)\bfrom\s+(?:[A-Za-z]+\s+)?\d{4}\s+to\s+(?:[A-Za-z]+\s+)?\d{4}\b",
+        t,
+    ):
+        return True
+    if re.search(r"(?i)\buntil\s+(?:[A-Za-z]+\s+)?\d{4}\b", t):
+        return True
+    return False
+
+
+def looks_current_office(text: str) -> bool:
+    """True when snippet signals incumbent / present tenure."""
+    t = text or ""
+    if looks_historical_office(t) and not re.search(r"(?i)\bsince\s+20\d{2}\b", t):
+        return False
+    return bool(
+        re.search(
+            r"(?i)\b(current|incumbent|has served as|serving as|"
+            r"since\s+20\d{2})\b",
+            t,
+        )
+    )
+
+
 def rank_hits(question: str, hits: list[dict], k: int = 4) -> list[dict]:
     return [h for _, h in rank_hits_scored(question, hits, k=k)]
 
@@ -784,6 +818,7 @@ def rank_hits_scored(
     want_ceo = bool(re.search(r"(?i)\bceo\b", question or ""))
     want_author = bool(re.search(r"(?i)\b(who wrote|author)\b", question or ""))
     want_pm = bool(re.search(r"(?i)\bprime minister\b", question or ""))
+    present_office = bool(re.search(r"(?i)\bwho is\b", question or ""))
     # Stronger: exact "How old is Name?" / "What is Name's birthday?"
     named_exact = re.match(
         r"(?i)^\s*(?:how old (?:is|are)|what is) "
@@ -860,14 +895,10 @@ def rank_hits_scored(
                 text,
             ):
                 score -= 6.0
-            if re.search(r"(?i)\bwho is\b", question or ""):
-                if re.search(
-                    r"(?i)\b(first ceo|was the (?:first )?ceo|from \d{4} to \d{4}|"
-                    r"197[0-9]|198[0-9]|199[0-9]|until 1981)\b",
-                    text,
-                ):
-                    score -= 14.0
-                if re.search(r"(?i)\b(current ceo|since 20\d{2}|incumbent)\b", text):
+            if present_office:
+                if looks_historical_office(text):
+                    score -= 16.0
+                if looks_current_office(text):
                     score += 8.0
             if re.search(r"(?i)^michael scott\b", title.strip()):
                 score -= 20.0
@@ -947,6 +978,11 @@ def rank_hits_scored(
                 r"(?i)\bwho is\b", question or ""
             ):
                 score -= 8.0
+            if present_office:
+                if looks_historical_office(text):
+                    score -= 14.0
+                if looks_current_office(text):
+                    score += 6.0
         if want_pm:
             place_m = re.search(r"(?i)\bprime minister of (.+?)\??\s*$", question or "")
             place = (place_m.group(1).strip() if place_m else "")
@@ -992,6 +1028,11 @@ def rank_hits_scored(
                 if since_years and has_person_name(title):
                     # Prefer the more recent incumbency when several PMs match.
                     score += min(max(since_years) - 2016, 12) * 0.75
+            if present_office:
+                if looks_historical_office(text):
+                    score -= 14.0
+                if looks_current_office(text):
+                    score += 6.0
         # "What is NASA?" — exact acronym title + definitional lede.
         acr_m = re.search(r"(?i)^\s*what is\s+([A-Z]{2,8})\??\s*$", question or "")
         if acr_m:

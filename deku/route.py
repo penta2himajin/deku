@@ -86,7 +86,9 @@ def extract_url(text: str) -> str | None:
 
 def hard_route(question: str) -> Decision | None:
     """High-confidence cues that must not be overridden by Needle."""
-    q = question or ""
+    from deku import normalize as nz
+
+    q = nz.normalize_question(question)[0]
     url = extract_url(q)
     if url:
         return Decision(tool="url_read", url=url, detail={"cue": "url"})
@@ -135,23 +137,26 @@ def hard_route(question: str) -> Decision | None:
 
 def rule_route(question: str) -> Decision:
     """Deterministic tool choice. Hard cues first, then soft lexical cues."""
-    hard = hard_route(question)
+    from deku import normalize as nz
+
+    q, nd = nz.normalize_question(question)
+    hard = hard_route(q)
     if hard:
-        hard.detail = {**hard.detail, "router": "rule"}
+        hard.detail = {**nd, **hard.detail, "router": "rule"}
         return hard
-    q = question or ""
     from deku import orchestrate as orch
     plan = orch.select_and_build(q)
     if plan and len(plan.steps) >= 2:
         return Decision(
             tool="multi_hop",
             query=ws.rule_query(q),
-            detail={"router": "rule", "cue": "plan", "plan_id": plan.plan_id},
+            detail={**nd, "router": "rule", "cue": "plan", "plan_id": plan.plan_id},
         )
     if orch.mixed_tools_without_plan(q):
         return Decision(
             tool="refuse",
             detail={
+                **nd,
                 "router": "rule",
                 "cue": "mixed_tools",
                 "reason": "out_of_scope",
@@ -161,18 +166,18 @@ def rule_route(question: str) -> Decision:
         return Decision(
             tool="dir_search",
             query=ws.rule_query(q),
-            detail={"router": "rule", "cue": "dir"},
+            detail={**nd, "router": "rule", "cue": "dir"},
         )
     if WEB_CUES.search(q):
         return Decision(
             tool="web_search",
             query=ws.rule_query(q),
-            detail={"router": "rule", "cue": "web"},
+            detail={**nd, "router": "rule", "cue": "web"},
         )
     reason = refuse_mod.classify(q)
     return Decision(
         tool="refuse",
-        detail={"router": "rule", "cue": "default", "reason": reason},
+        detail={**nd, "router": "rule", "cue": "default", "reason": reason},
     )
 
 
@@ -260,29 +265,32 @@ def dispatch(
     use_needle_slots: bool = False,
 ) -> Routed:
     """Route then run the chosen tool (stubs for git/diff until implemented)."""
-    dec = route(question, router=router)
+    from deku import normalize as nz
+
+    q, nd = nz.normalize_question(question)
+    dec = route(q, router=router)
     out = Routed(
         tool=dec.tool,
         query=dec.query,
         url=dec.url,
-        detail=dict(dec.detail),
+        detail={**nd, **dict(dec.detail)},
     )
     if dec.tool == "refuse":
-        reason = dec.detail.get("reason") or refuse_mod.classify(question)
+        reason = dec.detail.get("reason") or refuse_mod.classify(q)
         out.status = "refused"
         out.answer = refuse_mod.message(reason)
         out.detail["reason"] = reason
         return out
     if dec.tool == "clarify":
         from deku import clarify as cl
-        reason = dec.detail.get("reason") or cl.detect(question) or "path"
+        reason = dec.detail.get("reason") or cl.detect(q) or "path"
         out.status = "clarify"
-        out.answer = cl.question_for(question)
+        out.answer = cl.question_for(q)
         out.detail["reason"] = reason
         return out
     if dec.tool == "url_read":
         got = ur.run(
-            question,
+            q,
             url=dec.url,
             seed=seed,
             fetch=url_fetch,
@@ -293,7 +301,7 @@ def dispatch(
         out.url = got.url or dec.url
         out.document = got.document
         out.detail.update(got.detail)
-        if SUMMARIZE_CUES.search(question or ""):
+        if SUMMARIZE_CUES.search(q or ""):
             out.detail["mode"] = got.detail.get("mode", "summarize")
         return out
     if dec.tool == "multi_hop":
@@ -302,7 +310,7 @@ def dispatch(
             out.status = "skipped_offline"
             out.detail["note"] = "multi_hop needs live_answer"
             return out
-        got = orch.run(question, seed=seed, root=root)
+        got = orch.run(q, seed=seed, root=root)
         out.status = got.status
         out.answer = got.answer
         out.document = got.document
@@ -315,7 +323,7 @@ def dispatch(
             out.detail["note"] = "web_search needs live_answer"
             return out
         got = ws.run(
-            question,
+            q,
             router="rule",
             seed=seed,
             use_needle_slots=use_needle_slots,
@@ -329,7 +337,7 @@ def dispatch(
         return out
     if dec.tool == "dir_search":
         from deku import dir_search as ds
-        got = ds.run(question, root=root, seed=seed)
+        got = ds.run(q, root=root, seed=seed)
         out.status = got.status
         out.answer = got.answer
         out.query = got.query
@@ -340,7 +348,7 @@ def dispatch(
     if dec.tool == "git_search":
         from deku import git_search as gits
         got = gits.run(
-            question, root=root, seed=seed, live_answer=live_answer,
+            q, root=root, seed=seed, live_answer=live_answer,
         )
         out.status = got.status
         out.answer = got.answer
@@ -352,7 +360,7 @@ def dispatch(
     if dec.tool == "diff_search":
         from deku import diff_search as diffs
         got = diffs.run(
-            question, root=root, seed=seed, live_answer=live_answer,
+            q, root=root, seed=seed, live_answer=live_answer,
         )
         out.status = got.status
         out.answer = got.answer
