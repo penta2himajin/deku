@@ -7,7 +7,7 @@
     "status": "ok",
     "plan_id": "web+dir",
     "answer": "1. The CEO of Apple is Tim Cook, who served as the company's chief executive officer since 2011. / 2. PREFILL is set to \"ANSWER: \".",
-    "secs": 11.72,
+    "secs": 11.83,
     "abstain": null,
     "failed_steps": []
   },
@@ -19,7 +19,7 @@
     "status": "ok",
     "plan_id": "dir+web",
     "answer": "1. The harness picks tools and builds evidence; MiniCPM only compresses or extracts short grounded spans. / 2. Tim Cook is the CEO of Apple.",
-    "secs": 12.12,
+    "secs": 11.39,
     "abstain": null,
     "failed_steps": []
   },
@@ -30,8 +30,8 @@
     "tool": "multi_hop",
     "status": "ok",
     "plan_id": "git+dir",
-    "answer": "1. Kenya Nara (@penta2himajin) authored commit fcdeb81347fe (\"fix: treat README overview questions as prose dir_search\"). / 2. PREFILL is set to \"ANSWER: \".",
-    "secs": 0.2,
+    "answer": "1. Kenya Nara (@penta2himajin) authored commit 9334a3ef1847 (\"fix: stop capital core bleed and allow CEO replies from bio packs\"). / 2. PREFILL is set to \"ANSWER: \".",
+    "secs": 0.18,
     "abstain": null,
     "failed_steps": []
   },
@@ -40,18 +40,12 @@
     "q": "What is the last commit message and what is in the unstaged diff?",
     "expect_tool": "multi_hop",
     "tool": "multi_hop",
-    "status": "partial",
+    "status": "ok",
     "plan_id": "git_and_diff",
-    "answer": "1. The last commit message is \"fix: treat README overview questions as prose dir_search\". /  / (could not answer: What is in the unstaged diff?)",
+    "answer": "1. The last commit message is \"fix: stop capital core bleed and allow CEO replies from bio packs\". / 2. In evals/results/p7_composition_probes.json, the diff includes: / -    \"secs\": 11.72, / +    \"secs\": 12.58, / -    \"secs\": 12.12, / +    \"secs\": 11.77, / -    \"answer\": \"1. Kenya Nara (@pe",
     "secs": 0.06,
     "abstain": null,
-    "failed_steps": [
-      {
-        "query": "What is in the unstaged diff?",
-        "tool": "diff_search",
-        "status": "no_diff"
-      }
-    ]
+    "failed_steps": []
   },
   {
     "id": "C05",
@@ -61,7 +55,7 @@
     "status": "ok",
     "plan_id": "web_dependent",
     "answer": "The CEO of Apple is Tim Cook, who served as the company's chief executive officer since 2011. Tim Cook was born in Mobile, Alabama.",
-    "secs": 19.62,
+    "secs": 17.95,
     "abstain": null,
     "failed_steps": []
   },
@@ -73,7 +67,7 @@
     "status": "ok",
     "plan_id": "web_dependent",
     "answer": "Microsoft was founded by Bill Gates and Paul Allen.. Microsoft was founded in 1975.",
-    "secs": 31.84,
+    "secs": 23.92,
     "abstain": null,
     "failed_steps": []
   },
@@ -82,18 +76,12 @@
     "q": "What is the capital of France and what is the capital of Japan?",
     "expect_tool": "multi_hop",
     "tool": "multi_hop",
-    "status": "partial",
+    "status": "ok",
     "plan_id": "web_independent",
-    "answer": "1. The capital of France is Paris. /  / (could not answer: What is the capital of Japan?)",
-    "secs": 25.78,
+    "answer": "1. The capital of France is Paris, the city that has been the capital since 1944. / 2. The capital of Japan is Tokyo.",
+    "secs": 25.23,
     "abstain": null,
-    "failed_steps": [
-      {
-        "query": "What is the capital of Japan?",
-        "tool": "web_search",
-        "status": "cannot_answer"
-      }
-    ]
+    "failed_steps": []
   },
   {
     "id": "C08",
@@ -102,8 +90,8 @@
     "tool": "multi_hop",
     "status": "ok",
     "plan_id": "web_independent",
-    "answer": "1. The CEO of Apple is Tim Cook, who served as the company's chief executive officer since 2011. / 2. The capital of France is Paris.",
-    "secs": 23.13,
+    "answer": "1. The CEO of Apple is Tim Cook, who served as the company's chief executive officer since 2011. / 2. The capital of France is Paris, the city that has been the capital since 1944.",
+    "secs": 25.51,
     "abstain": null,
     "failed_steps": []
   },
@@ -124,18 +112,12 @@
     "q": "What is in the unstaged diff and who is the CEO of Apple?",
     "expect_tool": "multi_hop",
     "tool": "multi_hop",
-    "status": "partial",
+    "status": "ok",
     "plan_id": "diff+web",
-    "answer": "1. Tim Cook is the CEO of Apple. /  / (could not answer: What is in the unstaged diff?)",
-    "secs": 12.42,
+    "answer": "1. In evals/results/p7_composition_probes.json, the diff includes: / -    \"secs\": 11.72, / +    \"secs\": 12.58, / -    \"secs\": 12.12, / +    \"secs\": 11.77, / -    \"answer\": \"1. Kenya Nara (@penta2himajin) authored commit fcdeb81347fe (\\\"fix: treat README overview questions as prose dir_sear",
+    "secs": 11.99,
     "abstain": null,
-    "failed_steps": [
-      {
-        "query": "What is in the unstaged diff?",
-        "tool": "diff_search",
-        "status": "no_diff"
-      }
-    ]
+    "failed_steps": []
   },
   {
     "id": "C11",
@@ -144,8 +126,8 @@
     "tool": "multi_hop",
     "status": "ok",
     "plan_id": "git_and_web",
-    "answer": "1. Kenya Nara (@penta2himajin) authored commit fcdeb81347fe (\"fix: treat README overview questions as prose dir_search\"). / 2. Tim Cook is the CEO of Apple.",
-    "secs": 12.66,
+    "answer": "1. Kenya Nara (@penta2himajin) authored commit 9334a3ef1847 (\"fix: stop capital core bleed and allow CEO replies from bio packs\"). / 2. Tim Cook is the CEO of Apple.",
+    "secs": 11.44,
     "abstain": null,
     "failed_steps": []
   },
@@ -157,7 +139,7 @@
     "status": "ok",
     "plan_id": "dir_pair",
     "answer": "1. The harness picks tools and builds evidence; MiniCPM only compresses or extracts short grounded spans. / 2. MAX_TOKENS is set to 40.",
-    "secs": 0.2,
+    "secs": 0.19,
     "abstain": null,
     "failed_steps": []
   },
@@ -168,7 +150,7 @@
     "tool": "multi_hop",
     "status": "ok",
     "plan_id": "dir+git",
-    "answer": "1. The harness picks tools and builds evidence; MiniCPM only compresses or extracts short grounded spans. / 2. Kenya Nara (@penta2himajin) authored commit fcdeb81347fe (\"fix: treat README overview questions as prose dir_search\").",
+    "answer": "1. The harness picks tools and builds evidence; MiniCPM only compresses or extracts short grounded spans. / 2. Kenya Nara (@penta2himajin) authored commit 9334a3ef1847 (\"fix: stop capital core bleed and allow CEO replies from bio packs\").",
     "secs": 0.1,
     "abstain": null,
     "failed_steps": []
@@ -181,7 +163,7 @@
     "status": "ok",
     "plan_id": "web+dir",
     "answer": "1. The CEO of Toyota is Kōji Satō. / 2. PREFILL is set to \"ANSWER: \".",
-    "secs": 13.35,
+    "secs": 9.55,
     "abstain": null,
     "failed_steps": []
   },
@@ -190,36 +172,24 @@
     "q": "Who founded SpaceX and where was he born?",
     "expect_tool": "multi_hop",
     "tool": "multi_hop",
-    "status": "cannot_answer",
+    "status": "ok",
     "plan_id": "web_dependent",
-    "answer": "I cannot answer from the available sources (failed on: Who founded SpaceX? via web_search)",
-    "secs": 13.4,
+    "answer": "SpaceX was founded by Elon Musk and Gwynne Shotwell. Elon Musk was born in Pretoria.",
+    "secs": 17.98,
     "abstain": null,
-    "failed_steps": [
-      {
-        "query": "Who founded SpaceX?",
-        "tool": "web_search",
-        "status": "cannot_answer"
-      }
-    ]
+    "failed_steps": []
   },
   {
     "id": "C16",
     "q": "What is the capital of Japan and what is its population?",
     "expect_tool": "multi_hop",
     "tool": "multi_hop",
-    "status": "cannot_answer",
+    "status": "ok",
     "plan_id": "web_dependent",
-    "answer": "I cannot answer from the available sources (failed on: What is the capital of Japan? via web_search)",
-    "secs": 7.9,
+    "answer": "The capital of Japan is Tokyo. The population of Tokyo is 14 million.",
+    "secs": 17.76,
     "abstain": null,
-    "failed_steps": [
-      {
-        "query": "What is the capital of Japan?",
-        "tool": "web_search",
-        "status": "cannot_answer"
-      }
-    ]
+    "failed_steps": []
   },
   {
     "id": "C17",
@@ -261,12 +231,12 @@
     "id": "C20",
     "q": "Who is the CEO of Apple and should I buy the stock?",
     "expect_tool": "refuse",
-    "tool": "web_search",
-    "status": "cannot_answer",
+    "tool": "refuse",
+    "status": "refused",
     "plan_id": null,
-    "answer": "I cannot answer from the available sources.",
-    "secs": 8.83,
-    "abstain": "weak_or_off_topic_hit",
+    "answer": "I cannot handle that request with the available tools. Ask clear factual questions (web fact, repo file, git history, or diff), or join up to three such questions with 'and who/what/when…'. Opinion and open-ended judgment are out of scope.",
+    "secs": 0.0,
+    "abstain": null,
     "failed_steps": null
   },
   {
@@ -277,7 +247,7 @@
     "status": "ok",
     "plan_id": null,
     "answer": "The CEO of Apple is Tim Cook, who served as the company's chief executive officer since 2011.",
-    "secs": 12.36,
+    "secs": 11.53,
     "abstain": null,
     "failed_steps": null
   },
@@ -324,7 +294,7 @@
     "tool": "git_search",
     "status": "ok",
     "plan_id": null,
-    "answer": "Kenya Nara (@penta2himajin) authored commit fcdeb81347fe (\"fix: treat README overview questions as prose dir_search\").",
+    "answer": "Kenya Nara (@penta2himajin) authored commit 9334a3ef1847 (\"fix: stop capital core bleed and allow CEO replies from bio packs\").",
     "secs": 0.04,
     "abstain": null,
     "failed_steps": null
@@ -334,11 +304,11 @@
     "q": "What is in the unstaged diff?",
     "expect_tool": "diff_search",
     "tool": "diff_search",
-    "status": "no_diff",
+    "status": "ok",
     "plan_id": null,
-    "answer": "I cannot answer from the available sources.",
+    "answer": "In evals/results/p7_composition_probes.json, the diff includes: / -    \"secs\": 11.72, / +    \"secs\": 12.58, / -    \"secs\": 12.12, / +    \"secs\": 11.77, / -    \"answer\": \"1. Kenya Nara (@penta2himajin) authored commit fcdeb81347fe (\\\"fix: treat README overview questions as prose dir_search\\",
     "secs": 0.02,
-    "abstain": "no_diff",
+    "abstain": null,
     "failed_steps": null
   },
   {
@@ -349,7 +319,7 @@
     "status": "ok",
     "plan_id": null,
     "answer": "MiniCPM5-1B is the only supported model; all other models can be selected via env vars.",
-    "secs": 1.74,
+    "secs": 0.25,
     "abstain": null,
     "failed_steps": null
   },
@@ -361,7 +331,7 @@
     "status": "ok",
     "plan_id": null,
     "answer": "Apple Inc. is headquartered in Cupertino, California.",
-    "secs": 6.37,
+    "secs": 5.29,
     "abstain": null,
     "failed_steps": null
   },
@@ -373,7 +343,7 @@
     "status": "ok",
     "plan_id": null,
     "answer": "The Prime Minister of Japan is Sanae Takaichi.",
-    "secs": 23.57,
+    "secs": 16.56,
     "abstain": null,
     "failed_steps": null
   },
@@ -382,11 +352,11 @@
     "q": "Who is the CEO of Google?",
     "expect_tool": "web_search",
     "tool": "web_search",
-    "status": "cannot_answer",
+    "status": "ok",
     "plan_id": null,
-    "answer": "I cannot answer from the available sources.",
-    "secs": 11.58,
-    "abstain": "empty_reply",
+    "answer": "The CEO of Google is Sundar Pichai.",
+    "secs": 10.91,
+    "abstain": null,
     "failed_steps": null
   },
   {
@@ -397,7 +367,7 @@
     "status": "ok",
     "plan_id": null,
     "answer": "The capital of Peru is Lima.",
-    "secs": 11.73,
+    "secs": 11.08,
     "abstain": null,
     "failed_steps": null
   },
@@ -409,7 +379,7 @@
     "status": "ok",
     "plan_id": null,
     "answer": "Stripe was founded by Patrick Collison and John Collison.",
-    "secs": 13.38,
+    "secs": 10.53,
     "abstain": null,
     "failed_steps": null
   },
@@ -421,7 +391,7 @@
     "status": "ok",
     "plan_id": null,
     "answer": "Tesla was founded in 2003.",
-    "secs": 18.34,
+    "secs": 12.66,
     "abstain": null,
     "failed_steps": null
   },
@@ -433,7 +403,7 @@
     "status": "ok",
     "plan_id": null,
     "answer": "Hamlet was written by William Shakespeare.",
-    "secs": 17.6,
+    "secs": 9.26,
     "abstain": null,
     "failed_steps": null
   },
@@ -444,8 +414,8 @@
     "tool": "multi_hop",
     "status": "ok",
     "plan_id": "git_pair",
-    "answer": "1. The last commit message is \"fix: treat README overview questions as prose dir_search\". / 2. Kenya Nara (@penta2himajin) authored commit fcdeb81347fe (\"fix: treat README overview questions as prose dir_search\").",
-    "secs": 0.09,
+    "answer": "1. The last commit message is \"fix: stop capital core bleed and allow CEO replies from bio packs\". / 2. Kenya Nara (@penta2himajin) authored commit 9334a3ef1847 (\"fix: stop capital core bleed and allow CEO replies from bio packs\").",
+    "secs": 0.07,
     "abstain": null,
     "failed_steps": []
   },
@@ -457,7 +427,7 @@
     "status": "ok",
     "plan_id": null,
     "answer": "The CEO of Apple is Tim Cook, who served as the company's chief executive officer since 2011.",
-    "secs": 12.36,
+    "secs": 12.14,
     "abstain": null,
     "failed_steps": null
   },
@@ -469,7 +439,7 @@
     "status": "ok",
     "plan_id": null,
     "answer": "The population of Tokyo is over 14 million as of 2023.",
-    "secs": 8.32,
+    "secs": 6.16,
     "abstain": null,
     "failed_steps": null
   },
@@ -481,7 +451,7 @@
     "status": "ok",
     "plan_id": null,
     "answer": "The domain is for documentation examples. It is for use in documentation examples.",
-    "secs": 0.32,
+    "secs": 0.8,
     "abstain": null,
     "failed_steps": null
   },
@@ -492,8 +462,8 @@
     "tool": "multi_hop",
     "status": "ok",
     "plan_id": "web_independent",
-    "answer": "1. The capital of France is Paris. / 2. Tim Cook is the CEO of Apple.",
-    "secs": 26.29,
+    "answer": "1. The capital of France is Paris, the city that has been the capital since 1944. / 2. Tim Cook is the CEO of Apple.",
+    "secs": 25.55,
     "abstain": null,
     "failed_steps": []
   },
@@ -505,7 +475,7 @@
     "status": "ok",
     "plan_id": "dir_pair",
     "answer": "1. MiniCPM5-1B–oriented local task harness plus a thin OpenAI-compatible / 2. PREFILL is set to \"ANSWER: \".",
-    "secs": 0.2,
+    "secs": 0.19,
     "abstain": null,
     "failed_steps": []
   },
@@ -517,7 +487,7 @@
     "status": "ok",
     "plan_id": "web+dir",
     "answer": "1. The CEO of Apple is Tim Cook, who served as the company's chief executive officer since 2011. / 2. MAX_TOKENS is set to 40.",
-    "secs": 20.51,
+    "secs": 11.7,
     "abstain": null,
     "failed_steps": []
   },
@@ -528,8 +498,8 @@
     "tool": "multi_hop",
     "status": "ok",
     "plan_id": "dir+git",
-    "answer": "1. PREFILL is set to \"ANSWER: \". / 2. Kenya Nara (@penta2himajin) authored commit fcdeb81347fe (\"fix: treat README overview questions as prose dir_search\").",
-    "secs": 0.16,
+    "answer": "1. PREFILL is set to \"ANSWER: \". / 2. Kenya Nara (@penta2himajin) authored commit 9334a3ef1847 (\"fix: stop capital core bleed and allow CEO replies from bio packs\").",
+    "secs": 0.15,
     "abstain": null,
     "failed_steps": []
   },
@@ -540,8 +510,8 @@
     "tool": "multi_hop",
     "status": "ok",
     "plan_id": "git_and_web",
-    "answer": "1. The last commit (\"fix: treat README overview questions as prose dir_search\") changed: deku/dir_search.py, tests/test_dir_search.py. / 2. The capital of France is Paris.",
-    "secs": 10.59,
+    "answer": "1. The last commit (\"fix: stop capital core bleed and allow CEO replies from bio packs\") changed: deku/multi_hop.py, deku/web_search.py, tests/test_p7_probe_holes.py. / 2. The capital of France is Paris, the city that has been the capital since 1944.",
+    "secs": 13.5,
     "abstain": null,
     "failed_steps": []
   },
@@ -553,7 +523,7 @@
     "status": "ok",
     "plan_id": "web_independent",
     "answer": "1. Kenichiro Yoshida is the CEO of Sony, serving as executive chairman from April 2018 to April 2025. / 2. Sony headquartered at the Sony City building in Minato, Tokyo.",
-    "secs": 22.32,
+    "secs": 16.9,
     "abstain": null,
     "failed_steps": []
   },
