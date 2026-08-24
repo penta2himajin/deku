@@ -80,13 +80,33 @@ def question_identifiers(question: str) -> list[str]:
     return out
 
 
+# Product doc basenames that look ALLCAPS but are not code constants.
+_DOC_ALLCAPS = frozenset({"README", "AGENTS", "CLAUDE", "LICENSE", "CHANGELOG"})
+
+
 def corpus_mode(question: str) -> str:
     """code = ALLCAPS(len≥4) / snake_case idents; prose = overview without them."""
     idents = question_identifiers(question)
     codeish = [
         i for i in idents
-        if (i.isupper() and len(i) >= 4) or "_" in i or i.endswith((".py", ".md"))
+        if (
+            ((i.isupper() and len(i) >= 4) or "_" in i or i.endswith((".py", ".md")))
+            and i.casefold() not in {d.casefold() for d in _DOC_ALLCAPS}
+            and not i.lower().endswith((".md",))
+        )
     ]
+    # README / overview questions stay prose even if "README" was mentioned.
+    if re.search(
+        r"(?i)\b(readme|overview|purpose|this project|about (?:this|deku|the project))\b",
+        question or "",
+    ):
+        # Still code mode when a real assignment-style constant remains.
+        real_code = [
+            i for i in codeish
+            if "_" in i or (i.isupper() and i not in _DOC_ALLCAPS and len(i) >= 4)
+        ]
+        if not real_code:
+            return "prose"
     return "code" if codeish else "prose"
 
 
@@ -474,7 +494,7 @@ def run(
         ]
         if prose_only:
             # Product README/AGENTS beat research notes for overview/model Qs.
-            if re.search(r"(?i)\b(about|overview|purpose|project|models?|minicpm|llms?)\b", question or ""):
+            if re.search(r"(?i)\b(about|overview|purpose|project|readme|models?|minicpm|llms?)\b", question or ""):
                 product = [h for h in prose_only if (h.get("path") or "") in PROSE_PATHS]
                 corpus = product or prose_only
             else:
@@ -538,7 +558,8 @@ def run(
         lead = prose_lead_sentence(doc, question) or out.detail.get("prose_lead_candidate")
         overview = bool(
             re.search(
-                r"(?i)\b(about|purpose|overview|this project|what (?:is|does) (?:this|deku))\b",
+                r"(?i)\b(about|purpose|overview|readme|this project|"
+                r"what (?:is|does) (?:this|deku|the readme))\b",
                 question or "",
             )
         )

@@ -114,6 +114,26 @@ class TestIntent(unittest.TestCase):
     def test_project_overview_is_search(self):
         self.assertEqual(ds.rule_intent("What is this project about?"), "search")
 
+    def test_readme_question_is_prose_mode(self):
+        self.assertEqual(
+            ds.corpus_mode("What does the README say about deku?"),
+            "prose",
+        )
+        self.assertEqual(
+            ds.corpus_mode("What is the PREFILL string?"),
+            "code",
+        )
+
+    def test_readme_about_deku_answers_from_repo(self):
+        got = ds.run("What does the README say about deku?", root=".", seed=0)
+        self.assertEqual(got.status, "ok")
+        self.assertEqual(got.detail.get("mode"), "prose")
+        ans = (got.answer or "").lower()
+        self.assertTrue(
+            "harness" in ans or "minicpm" in ans,
+            msg=repr(got.answer),
+        )
+
 
 class TestAssignment(unittest.TestCase):
     def test_finds_prefill_assignment(self):
