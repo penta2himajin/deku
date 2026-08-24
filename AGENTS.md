@@ -94,6 +94,17 @@ Long-running workstreams use GitHub issues for cross-session continuity. See `do
 - One issue per workstream (not per session)
 - On session start, read the relevant handoff issue and confirm the **Next action** with the user before executing.
 
+## Parent-agent wiring
+
+Cursor parent agents should call deku as a fact worker via the **deku-ask** skill
+(`.cursor/skills/deku-ask/SKILL.md`):
+
+```bash
+mise exec -- uv run deku ask --json --audience agent --root . "QUESTION"
+```
+
+See `docs/architecture.md` (parent-agent contract). Do not treat deku as a coding subagent.
+
 ## Internationalisation
 
 Follow `docs/i18n-policy.md`:

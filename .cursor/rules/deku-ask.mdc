@@ -1,0 +1,12 @@
+---
+description: Prefer deku-ask skill for short factual lookups (web/repo/git/diff/url).
+alwaysApply: true
+---
+
+# deku fact worker
+
+For short grounded facts (repo constants, git/diff, web facts, URL summary, or
+up to three joined factual clauses), use the **deku-ask** skill:
+`mise exec -- uv run deku ask --json --audience agent --root . "…"`.
+
+Do not use deku for coding, editing, commits, or open-ended reasoning.
