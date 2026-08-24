@@ -34,8 +34,8 @@ DIFF_CUES = re.compile(
 WEB_CUES = ws.SEARCH_CUES
 JOIN_CUES = re.compile(
     r"(?i)\b("
-    r"and (?:who|what|when|where|which)\b|"
-    r"\?\s+(?:and\s+)?(?:who|what|when|where|which)\b|"
+    r"and (?:who|what|when|where|which|should|do you)\b|"
+    r"\?\s+(?:and\s+)?(?:who|what|when|where|which|should)\b|"
     r"and (?:what|show|list)\b"
     r")"
 )
@@ -72,7 +72,8 @@ def classify_clause(clause: str) -> str | None:
     # Opinion / evaluative tails are not retrieval clauses.
     if re.search(
         r"(?i)\b(good|bad|better|worse|should|ought|"
-        r"opinion|think|feel|worth it|a good thing)\b",
+        r"opinion|think|feel|worth it|a good thing|"
+        r"buy the stock|invest in)\b",
         c,
     ):
         return None

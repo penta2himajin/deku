@@ -782,7 +782,7 @@ def wiki_founders(title: str) -> str | None:
         return None
     wt = ((raw.get("parse") or {}).get("wikitext") or {}).get("*") or ""
     m = re.search(
-        r"(?is)(?:^|\|)\s*founders\s*=\s*(.+?)(?:\n\|[a-z_]+\s*=|\n\}\})",
+        r"(?is)(?:^|\|)\s*founders?\s*=\s*(.+?)(?:\n\|[a-z_]+\s*=|\n\}\})",
         wt,
     )
     if not m:
@@ -1202,15 +1202,27 @@ def rank_hits_scored(
             want_city = capitals.get(topic.casefold())
             if re.search(r"(?i)^capital of\b", title.strip()):
                 if want_city and re.search(
-                    rf"(?i)\b{re.escape(want_city)}\s+is the capital\b", text
+                    rf"(?i)\b{re.escape(want_city)}\b", text
+                ) and re.search(r"(?i)\bis the capital\b", text):
+                    score += 24.0
+                elif want_city and re.search(
+                    rf"(?i)\b{re.escape(want_city)}\b|\bis the capital\b", text
                 ):
-                    score += 6.0
+                    score += 18.0
                 elif re.search(r"(?i)\b([A-Z][a-z]+)\s+is the capital\b", text):
                     score += 4.0
                 else:
                     score -= 12.0
             if re.fullmatch(re.escape(topic), title.strip(), flags=re.I):
-                score += 10.0
+                # Bare country/org page: only boost when it states the capital.
+                if want_city and re.search(
+                    rf"(?i)\b{re.escape(want_city)}\b|\bis the capital\b", text
+                ):
+                    score += 10.0
+                elif want_city:
+                    score -= 6.0
+                else:
+                    score += 10.0
             if want_city and re.fullmatch(want_city, title.strip(), flags=re.I):
                 score += 22.0
             elif want_city and re.search(
@@ -2152,6 +2164,26 @@ def search(query: str, limit: int = 5, *, question: str = "") -> list[dict]:
                         _add(search_wikipedia(name, limit=limit))
                         _add(search_wikipedia_text(name, limit=limit))
                         _add(search_wikipedia(f"Premiership of {name}", limit=limit))
+    if re.search(r"(?i)\bcapital of\b", question or query or ""):
+        place_m = re.search(
+            r"(?i)capital of\s+(?:the\s+)?(.+?)\??\s*$", question or query or ""
+        )
+        place = (place_m.group(1).strip() if place_m else "").rstrip("?.")
+        if place:
+            _add(search_wikipedia(f"Capital of {place}", limit=limit))
+            _add(search_wikipedia_text(f"capital of {place}", limit=limit))
+            known = {
+                "peru": "Lima",
+                "australia": "Canberra",
+                "france": "Paris",
+                "japan": "Tokyo",
+                "kenya": "Nairobi",
+                "canada": "Ottawa",
+            }
+            city = known.get(place.casefold())
+            if city:
+                _add(search_wikipedia(city, limit=limit))
+                _add(search_wikipedia_text(f"{city} capital", limit=limit))
     for q in queries:
         _add(search_wikipedia(q, limit=limit))
         _add(search_wikipedia_text(q, limit=limit))
@@ -2471,6 +2503,20 @@ def relation_kind(question: str) -> str | None:
     return None
 
 
+def person_attested(core: str, document: str) -> bool:
+    """True when the full person name or a distinctive surname is in the doc."""
+    c = (core or "").strip()
+    doc = document or ""
+    if not c or not doc:
+        return False
+    if extract.norm(c) in extract.norm(doc):
+        return True
+    parts = [p for p in re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ']+", c) if len(p) > 1]
+    if len(parts) >= 2 and extract.norm(parts[-1]) in extract.norm(doc):
+        return True
+    return False
+
+
 def predicate_supported(question: str, core: str | None, document: str) -> bool:
     """True when the asked relation is attested near the core (or anywhere)."""
     rel = relation_kind(question)
@@ -2487,10 +2533,10 @@ def predicate_supported(question: str, core: str | None, document: str) -> bool:
         return bool(cue.search(doc))
     # Prefer a sentence/window that mentions both core and the relation.
     for sent in re.split(r"(?<=[.!?])\s+|\n+", doc):
-        if extract.norm(c) in extract.norm(sent) and cue.search(sent):
+        if person_attested(c, sent) and cue.search(sent):
             return True
     # Fallback: core and cue both present in the doc (enrichment lines).
-    return extract.norm(c) in extract.norm(doc) and bool(cue.search(doc))
+    return person_attested(c, doc) and bool(cue.search(doc))
 
 
 _MONTHS = frozenset("""
@@ -2635,7 +2681,10 @@ def template_reply(question: str, core: str, document: str) -> str | None:
     c = (core or "").strip()
     if not c or not document:
         return None
-    if extract.norm(c) not in extract.norm(document):
+    if not (
+        extract.norm(c) in extract.norm(document)
+        or person_attested(c, document)
+    ):
         return None
     q = (question or "").strip()
 
@@ -2799,7 +2848,10 @@ def compose_reply(
         templ = template_reply(question, core, document)
         if templ and reply_grounded(templ, document):
             candidates.append((9.0, templ, "template"))
-        elif templ and extract.norm(core) in extract.norm(document):
+        elif templ and (
+            extract.norm(core) in extract.norm(document)
+            or person_attested(core, document)
+        ):
             candidates.append((7.5, templ, "template_loose"))
         sent = sentence_with_core(core, document, question=question)
         if sent and (

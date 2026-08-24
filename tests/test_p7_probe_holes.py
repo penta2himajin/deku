@@ -1,0 +1,84 @@
+"""Holes found in P7 live composition probes."""
+
+from __future__ import annotations
+
+import unittest
+from unittest import mock
+
+from deku import multi_hop as mh
+from deku import orchestrate as orch
+from deku import route as rt
+from deku import web_search as ws
+
+
+class TestOpinionJoinRefuse(unittest.TestCase):
+    def test_should_buy_stock_refuses(self):
+        q = "Who is the CEO of Apple and should I buy the stock?"
+        self.assertGreaterEqual(len(mh.decompose(q)), 2)
+        self.assertIsNone(orch.select_and_build(q))
+        self.assertEqual(rt.rule_route(q).tool, "refuse")
+
+
+class TestCeoSurnameGrounding(unittest.TestCase):
+    def test_template_allows_surname_in_doc(self):
+        doc = (
+            "Google\n"
+            "Pichai was appointed CEO of Google in 2015, replacing Larry Page.\n"
+        )
+        got = ws.template_reply(
+            "Who is the CEO of Google?", "Sundar Pichai", doc
+        )
+        self.assertIsNotNone(got)
+        self.assertIn("Sundar Pichai", got)
+        self.assertTrue(
+            ws.predicate_supported(
+                "Who is the CEO of Google?", "Sundar Pichai", doc
+            )
+        )
+
+
+class TestFounderSingular(unittest.TestCase):
+    def test_wiki_founders_accepts_singular_field(self):
+        wt = (
+            "{{Infobox company\n"
+            "| name = SpaceX\n"
+            "| founder = [[Elon Musk]]\n"
+            "| hq_location_city = [[Starbase, Texas]]\n"
+            "}}\n"
+        )
+        payload = {"parse": {"wikitext": {"*": wt}}}
+        with mock.patch.object(
+            ws, "_get", return_value=__import__("json").dumps(payload)
+        ):
+            self.assertEqual(ws.wiki_founders("SpaceX"), "Elon Musk")
+
+
+class TestCapitalRanking(unittest.TestCase):
+    def test_capital_of_japan_prefers_capital_page(self):
+        q = "What is the capital of Japan?"
+        hits = [
+            {
+                "title": "Japan",
+                "snippet": "Japan is an island country in East Asia.",
+                "url": "u1",
+                "path": "",
+            },
+            {
+                "title": "Capital of Japan",
+                "snippet": "Tokyo is the capital of Japan and the largest city.",
+                "url": "u2",
+                "path": "",
+            },
+            {
+                "title": "Capital punishment in Japan",
+                "snippet": "Capital punishment is a legal penalty in Japan.",
+                "url": "u3",
+                "path": "",
+            },
+        ]
+        top = ws.rank_hits(q, hits, k=1)[0]
+        self.assertEqual(top["title"], "Capital of Japan")
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -144,9 +144,10 @@ class Result:
 
 SPLIT = re.compile(
     r"\s+(?:and\s+|then\s+|also,?\s+)?(?=(?:who|what|when|where|which)\b)"
+    r"|\s+and\s+(?=(?:should|do you|is that|are they|would you|could you)\b)"
     r"|\s*;\s*(?=(?:who|what|when|where|which)\b)"
     r"|,\s+then\s+(?=(?:who|what|when|where|which)\b)"
-    r"|\?\s*also,?\s+(?=(?:who|what|when|where|which|is|are|was|were)\b)",
+    r"|\?\s*also,?\s+(?=(?:who|what|when|where|which|is|are|was|were|should|do)\b)",
     re.I,
 )
 
@@ -184,7 +185,10 @@ def decompose(question: str) -> list[str]:
         return [_normalize_sub(question)]
     out = []
     for b in bits[:3]:
-        if not re.match(r"(?i)^(who|what|when|where|which|is|are)\b", b):
+        if not re.match(
+            r"(?i)^(who|what|when|where|which|is|are|should|do|would|could)\b",
+            b,
+        ):
             # First clause may already include the wh-word.
             if not out:
                 out.append(_normalize_sub(b))

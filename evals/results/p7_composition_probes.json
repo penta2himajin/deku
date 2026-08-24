@@ -1,0 +1,572 @@
+[
+  {
+    "id": "C01",
+    "q": "Who is the CEO of Apple and what is the PREFILL string?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "ok",
+    "plan_id": "web+dir",
+    "answer": "1. The CEO of Apple is Tim Cook, who served as the company's chief executive officer since 2011. / 2. PREFILL is set to \"ANSWER: \".",
+    "secs": 11.72,
+    "abstain": null,
+    "failed_steps": []
+  },
+  {
+    "id": "C02",
+    "q": "What does the README say about deku and who is the CEO of Apple?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "ok",
+    "plan_id": "dir+web",
+    "answer": "1. The harness picks tools and builds evidence; MiniCPM only compresses or extracts short grounded spans. / 2. Tim Cook is the CEO of Apple.",
+    "secs": 12.12,
+    "abstain": null,
+    "failed_steps": []
+  },
+  {
+    "id": "C03",
+    "q": "Who authored the last commit and what is the PREFILL string?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "ok",
+    "plan_id": "git+dir",
+    "answer": "1. Kenya Nara (@penta2himajin) authored commit fcdeb81347fe (\"fix: treat README overview questions as prose dir_search\"). / 2. PREFILL is set to \"ANSWER: \".",
+    "secs": 0.2,
+    "abstain": null,
+    "failed_steps": []
+  },
+  {
+    "id": "C04",
+    "q": "What is the last commit message and what is in the unstaged diff?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "partial",
+    "plan_id": "git_and_diff",
+    "answer": "1. The last commit message is \"fix: treat README overview questions as prose dir_search\". /  / (could not answer: What is in the unstaged diff?)",
+    "secs": 0.06,
+    "abstain": null,
+    "failed_steps": [
+      {
+        "query": "What is in the unstaged diff?",
+        "tool": "diff_search",
+        "status": "no_diff"
+      }
+    ]
+  },
+  {
+    "id": "C05",
+    "q": "Who is the CEO of Apple and where was he born?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "ok",
+    "plan_id": "web_dependent",
+    "answer": "The CEO of Apple is Tim Cook, who served as the company's chief executive officer since 2011. Tim Cook was born in Mobile, Alabama.",
+    "secs": 19.62,
+    "abstain": null,
+    "failed_steps": []
+  },
+  {
+    "id": "C06",
+    "q": "Who founded Microsoft and when was it founded?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "ok",
+    "plan_id": "web_dependent",
+    "answer": "Microsoft was founded by Bill Gates and Paul Allen.. Microsoft was founded in 1975.",
+    "secs": 31.84,
+    "abstain": null,
+    "failed_steps": []
+  },
+  {
+    "id": "C07",
+    "q": "What is the capital of France and what is the capital of Japan?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "partial",
+    "plan_id": "web_independent",
+    "answer": "1. The capital of France is Paris. /  / (could not answer: What is the capital of Japan?)",
+    "secs": 25.78,
+    "abstain": null,
+    "failed_steps": [
+      {
+        "query": "What is the capital of Japan?",
+        "tool": "web_search",
+        "status": "cannot_answer"
+      }
+    ]
+  },
+  {
+    "id": "C08",
+    "q": "Who is the CEO of Apple and what is the capital of France?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "ok",
+    "plan_id": "web_independent",
+    "answer": "1. The CEO of Apple is Tim Cook, who served as the company's chief executive officer since 2011. / 2. The capital of France is Paris.",
+    "secs": 23.13,
+    "abstain": null,
+    "failed_steps": []
+  },
+  {
+    "id": "C09",
+    "q": "What is MAX_TOKENS and what is the PREFILL string?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "ok",
+    "plan_id": "dir_pair",
+    "answer": "1. MAX_TOKENS is set to 40. / 2. PREFILL is set to \"ANSWER: \".",
+    "secs": 0.24,
+    "abstain": null,
+    "failed_steps": []
+  },
+  {
+    "id": "C10",
+    "q": "What is in the unstaged diff and who is the CEO of Apple?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "partial",
+    "plan_id": "diff+web",
+    "answer": "1. Tim Cook is the CEO of Apple. /  / (could not answer: What is in the unstaged diff?)",
+    "secs": 12.42,
+    "abstain": null,
+    "failed_steps": [
+      {
+        "query": "What is in the unstaged diff?",
+        "tool": "diff_search",
+        "status": "no_diff"
+      }
+    ]
+  },
+  {
+    "id": "C11",
+    "q": "Who authored the last commit and who is the CEO of Apple?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "ok",
+    "plan_id": "git_and_web",
+    "answer": "1. Kenya Nara (@penta2himajin) authored commit fcdeb81347fe (\"fix: treat README overview questions as prose dir_search\"). / 2. Tim Cook is the CEO of Apple.",
+    "secs": 12.66,
+    "abstain": null,
+    "failed_steps": []
+  },
+  {
+    "id": "C12",
+    "q": "What does the README say about deku and what is MAX_TOKENS?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "ok",
+    "plan_id": "dir_pair",
+    "answer": "1. The harness picks tools and builds evidence; MiniCPM only compresses or extracts short grounded spans. / 2. MAX_TOKENS is set to 40.",
+    "secs": 0.2,
+    "abstain": null,
+    "failed_steps": []
+  },
+  {
+    "id": "C13",
+    "q": "What is this project about and who authored the last commit?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "ok",
+    "plan_id": "dir+git",
+    "answer": "1. The harness picks tools and builds evidence; MiniCPM only compresses or extracts short grounded spans. / 2. Kenya Nara (@penta2himajin) authored commit fcdeb81347fe (\"fix: treat README overview questions as prose dir_search\").",
+    "secs": 0.1,
+    "abstain": null,
+    "failed_steps": []
+  },
+  {
+    "id": "C14",
+    "q": "Who is the CEO of Toyota and what is the PREFILL string?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "ok",
+    "plan_id": "web+dir",
+    "answer": "1. The CEO of Toyota is Kōji Satō. / 2. PREFILL is set to \"ANSWER: \".",
+    "secs": 13.35,
+    "abstain": null,
+    "failed_steps": []
+  },
+  {
+    "id": "C15",
+    "q": "Who founded SpaceX and where was he born?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "cannot_answer",
+    "plan_id": "web_dependent",
+    "answer": "I cannot answer from the available sources (failed on: Who founded SpaceX? via web_search)",
+    "secs": 13.4,
+    "abstain": null,
+    "failed_steps": [
+      {
+        "query": "Who founded SpaceX?",
+        "tool": "web_search",
+        "status": "cannot_answer"
+      }
+    ]
+  },
+  {
+    "id": "C16",
+    "q": "What is the capital of Japan and what is its population?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "cannot_answer",
+    "plan_id": "web_dependent",
+    "answer": "I cannot answer from the available sources (failed on: What is the capital of Japan? via web_search)",
+    "secs": 7.9,
+    "abstain": null,
+    "failed_steps": [
+      {
+        "query": "What is the capital of Japan?",
+        "tool": "web_search",
+        "status": "cannot_answer"
+      }
+    ]
+  },
+  {
+    "id": "C17",
+    "q": "Who is the CEO of Apple? Also, is that a good thing for the company?",
+    "expect_tool": "refuse",
+    "tool": "refuse",
+    "status": "refused",
+    "plan_id": null,
+    "answer": "I cannot handle that request with the available tools. Ask clear factual questions (web fact, repo file, git history, or diff), or join up to three such questions with 'and who/what/when…'. Opinion and open-ended judgment are out of scope.",
+    "secs": 0.0,
+    "abstain": null,
+    "failed_steps": null
+  },
+  {
+    "id": "C18",
+    "q": "What is 2+2 and who is the CEO of Apple?",
+    "expect_tool": "refuse",
+    "tool": "refuse",
+    "status": "refused",
+    "plan_id": null,
+    "answer": "I cannot help with math or calculation questions.",
+    "secs": 0.0,
+    "abstain": null,
+    "failed_steps": null
+  },
+  {
+    "id": "C19",
+    "q": "Write a sorting function and what is PREFILL?",
+    "expect_tool": "refuse",
+    "tool": "refuse",
+    "status": "refused",
+    "plan_id": null,
+    "answer": "I cannot write or implement code. Ask about existing project files, git history, or diffs instead.",
+    "secs": 0.0,
+    "abstain": null,
+    "failed_steps": null
+  },
+  {
+    "id": "C20",
+    "q": "Who is the CEO of Apple and should I buy the stock?",
+    "expect_tool": "refuse",
+    "tool": "web_search",
+    "status": "cannot_answer",
+    "plan_id": null,
+    "answer": "I cannot answer from the available sources.",
+    "secs": 8.83,
+    "abstain": "weak_or_off_topic_hit",
+    "failed_steps": null
+  },
+  {
+    "id": "C21",
+    "q": "Who is the CEO of Apple?",
+    "expect_tool": "web_search",
+    "tool": "web_search",
+    "status": "ok",
+    "plan_id": null,
+    "answer": "The CEO of Apple is Tim Cook, who served as the company's chief executive officer since 2011.",
+    "secs": 12.36,
+    "abstain": null,
+    "failed_steps": null
+  },
+  {
+    "id": "C22",
+    "q": "What is the PREFILL string?",
+    "expect_tool": "dir_search",
+    "tool": "dir_search",
+    "status": "ok",
+    "plan_id": null,
+    "answer": "PREFILL is set to \"ANSWER: \".",
+    "secs": 0.13,
+    "abstain": null,
+    "failed_steps": null
+  },
+  {
+    "id": "C23",
+    "q": "What does the README say about deku?",
+    "expect_tool": "dir_search",
+    "tool": "dir_search",
+    "status": "ok",
+    "plan_id": null,
+    "answer": "The harness picks tools and builds evidence; MiniCPM only compresses or extracts short grounded spans.",
+    "secs": 0.07,
+    "abstain": null,
+    "failed_steps": null
+  },
+  {
+    "id": "C24",
+    "q": "What is this project about?",
+    "expect_tool": "dir_search",
+    "tool": "dir_search",
+    "status": "ok",
+    "plan_id": null,
+    "answer": "The harness picks tools and builds evidence; MiniCPM only compresses or extracts short grounded spans.",
+    "secs": 0.06,
+    "abstain": null,
+    "failed_steps": null
+  },
+  {
+    "id": "C25",
+    "q": "Who authored the last commit?",
+    "expect_tool": "git_search",
+    "tool": "git_search",
+    "status": "ok",
+    "plan_id": null,
+    "answer": "Kenya Nara (@penta2himajin) authored commit fcdeb81347fe (\"fix: treat README overview questions as prose dir_search\").",
+    "secs": 0.04,
+    "abstain": null,
+    "failed_steps": null
+  },
+  {
+    "id": "C26",
+    "q": "What is in the unstaged diff?",
+    "expect_tool": "diff_search",
+    "tool": "diff_search",
+    "status": "no_diff",
+    "plan_id": null,
+    "answer": "I cannot answer from the available sources.",
+    "secs": 0.02,
+    "abstain": "no_diff",
+    "failed_steps": null
+  },
+  {
+    "id": "C27",
+    "q": "What language models does deku run?",
+    "expect_tool": "dir_search",
+    "tool": "dir_search",
+    "status": "ok",
+    "plan_id": null,
+    "answer": "MiniCPM5-1B is the only supported model; all other models can be selected via env vars.",
+    "secs": 1.74,
+    "abstain": null,
+    "failed_steps": null
+  },
+  {
+    "id": "C28",
+    "q": "Where is Apple headquartered?",
+    "expect_tool": "web_search",
+    "tool": "web_search",
+    "status": "ok",
+    "plan_id": null,
+    "answer": "Apple Inc. is headquartered in Cupertino, California.",
+    "secs": 6.37,
+    "abstain": null,
+    "failed_steps": null
+  },
+  {
+    "id": "C29",
+    "q": "Who is the prime minister of Japan?",
+    "expect_tool": "web_search",
+    "tool": "web_search",
+    "status": "ok",
+    "plan_id": null,
+    "answer": "The Prime Minister of Japan is Sanae Takaichi.",
+    "secs": 23.57,
+    "abstain": null,
+    "failed_steps": null
+  },
+  {
+    "id": "C30",
+    "q": "Who is the CEO of Google?",
+    "expect_tool": "web_search",
+    "tool": "web_search",
+    "status": "cannot_answer",
+    "plan_id": null,
+    "answer": "I cannot answer from the available sources.",
+    "secs": 11.58,
+    "abstain": "empty_reply",
+    "failed_steps": null
+  },
+  {
+    "id": "C31",
+    "q": "What is the capital of Peru?",
+    "expect_tool": "web_search",
+    "tool": "web_search",
+    "status": "ok",
+    "plan_id": null,
+    "answer": "The capital of Peru is Lima.",
+    "secs": 11.73,
+    "abstain": null,
+    "failed_steps": null
+  },
+  {
+    "id": "C32",
+    "q": "Who founded Stripe?",
+    "expect_tool": "web_search",
+    "tool": "web_search",
+    "status": "ok",
+    "plan_id": null,
+    "answer": "Stripe was founded by Patrick Collison and John Collison.",
+    "secs": 13.38,
+    "abstain": null,
+    "failed_steps": null
+  },
+  {
+    "id": "C33",
+    "q": "When was Tesla founded?",
+    "expect_tool": "web_search",
+    "tool": "web_search",
+    "status": "ok",
+    "plan_id": null,
+    "answer": "Tesla was founded in 2003.",
+    "secs": 18.34,
+    "abstain": null,
+    "failed_steps": null
+  },
+  {
+    "id": "C34",
+    "q": "Who wrote Hamlet?",
+    "expect_tool": "web_search",
+    "tool": "web_search",
+    "status": "ok",
+    "plan_id": null,
+    "answer": "Hamlet was written by William Shakespeare.",
+    "secs": 17.6,
+    "abstain": null,
+    "failed_steps": null
+  },
+  {
+    "id": "C35",
+    "q": "What is the last commit message and who authored it?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "ok",
+    "plan_id": "git_pair",
+    "answer": "1. The last commit message is \"fix: treat README overview questions as prose dir_search\". / 2. Kenya Nara (@penta2himajin) authored commit fcdeb81347fe (\"fix: treat README overview questions as prose dir_search\").",
+    "secs": 0.09,
+    "abstain": null,
+    "failed_steps": []
+  },
+  {
+    "id": "C36",
+    "q": "Who currently runs Apple as chief executive?",
+    "expect_tool": "web_search",
+    "tool": "web_search",
+    "status": "ok",
+    "plan_id": null,
+    "answer": "The CEO of Apple is Tim Cook, who served as the company's chief executive officer since 2011.",
+    "secs": 12.36,
+    "abstain": null,
+    "failed_steps": null
+  },
+  {
+    "id": "C37",
+    "q": "What is Tokyo's population?",
+    "expect_tool": "web_search",
+    "tool": "web_search",
+    "status": "ok",
+    "plan_id": null,
+    "answer": "The population of Tokyo is over 14 million as of 2023.",
+    "secs": 8.32,
+    "abstain": null,
+    "failed_steps": null
+  },
+  {
+    "id": "C38",
+    "q": "Summarize https://example.com",
+    "expect_tool": "url_read",
+    "tool": "url_read",
+    "status": "ok",
+    "plan_id": null,
+    "answer": "The domain is for documentation examples. It is for use in documentation examples.",
+    "secs": 0.32,
+    "abstain": null,
+    "failed_steps": null
+  },
+  {
+    "id": "C39",
+    "q": "What is the capital of France and who is the CEO of Apple?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "ok",
+    "plan_id": "web_independent",
+    "answer": "1. The capital of France is Paris. / 2. Tim Cook is the CEO of Apple.",
+    "secs": 26.29,
+    "abstain": null,
+    "failed_steps": []
+  },
+  {
+    "id": "C40",
+    "q": "What does AGENTS.md say about the harness and what is PREFILL?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "ok",
+    "plan_id": "dir_pair",
+    "answer": "1. MiniCPM5-1B–oriented local task harness plus a thin OpenAI-compatible / 2. PREFILL is set to \"ANSWER: \".",
+    "secs": 0.2,
+    "abstain": null,
+    "failed_steps": []
+  },
+  {
+    "id": "C41",
+    "q": "Who is the CEO of Apple and what is MAX_TOKENS?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "ok",
+    "plan_id": "web+dir",
+    "answer": "1. The CEO of Apple is Tim Cook, who served as the company's chief executive officer since 2011. / 2. MAX_TOKENS is set to 40.",
+    "secs": 20.51,
+    "abstain": null,
+    "failed_steps": []
+  },
+  {
+    "id": "C42",
+    "q": "What is PREFILL and who authored the last commit?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "ok",
+    "plan_id": "dir+git",
+    "answer": "1. PREFILL is set to \"ANSWER: \". / 2. Kenya Nara (@penta2himajin) authored commit fcdeb81347fe (\"fix: treat README overview questions as prose dir_search\").",
+    "secs": 0.16,
+    "abstain": null,
+    "failed_steps": []
+  },
+  {
+    "id": "C43",
+    "q": "What changed in the last commit and what is the capital of France?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "ok",
+    "plan_id": "git_and_web",
+    "answer": "1. The last commit (\"fix: treat README overview questions as prose dir_search\") changed: deku/dir_search.py, tests/test_dir_search.py. / 2. The capital of France is Paris.",
+    "secs": 10.59,
+    "abstain": null,
+    "failed_steps": []
+  },
+  {
+    "id": "C44",
+    "q": "Who is the CEO of Sony and where is Sony headquartered?",
+    "expect_tool": "multi_hop",
+    "tool": "multi_hop",
+    "status": "ok",
+    "plan_id": "web_independent",
+    "answer": "1. Kenichiro Yoshida is the CEO of Sony, serving as executive chairman from April 2018 to April 2025. / 2. Sony headquartered at the Sony City building in Minato, Tokyo.",
+    "secs": 22.32,
+    "abstain": null,
+    "failed_steps": []
+  },
+  {
+    "id": "C45",
+    "q": "What is this project about? Also, do you like it?",
+    "expect_tool": "refuse",
+    "tool": "refuse",
+    "status": "refused",
+    "plan_id": null,
+    "answer": "I cannot handle that request with the available tools. Ask clear factual questions (web fact, repo file, git history, or diff), or join up to three such questions with 'and who/what/when…'. Opinion and open-ended judgment are out of scope.",
+    "secs": 0.0,
+    "abstain": null,
+    "failed_steps": null
+  }
+]
