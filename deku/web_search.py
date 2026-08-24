@@ -35,6 +35,16 @@ NONSEARCH = re.compile(
     r"implement |fn |def )"
 )
 
+# Shared place→capital map for ranking and search enrichment (lowercase keys).
+KNOWN_CAPITALS = {
+    "peru": "lima",
+    "australia": "canberra",
+    "france": "paris",
+    "japan": "tokyo",
+    "kenya": "nairobi",
+    "canada": "ottawa",
+}
+
 
 @dataclass
 class Hit:
@@ -1167,7 +1177,7 @@ def rank_hits_scored(
                 if re.search(
                     rf"(?i)^(bernard arnault|tim cook|satya nadella)\b",
                     title.strip(),
-                ) and company.casefold() in ("lvmh", "apple", "microsoft"):
+                ) and company.casefold() in ("apple", "microsoft"):
                     score += 6.0
             if re.search(
                 r"(?i)\b(previously served|former ceo|until 201[0-9]|"
@@ -1180,26 +1190,8 @@ def rank_hits_scored(
                     score -= 16.0
                 if looks_current_office(text):
                     score += 8.0
-            if re.search(r"(?i)^michael scott\b", title.strip()):
-                score -= 20.0
-            # Prefer person bios that still say they are the CEO after enrich.
-            if re.search(
-                rf"(?i)^(tim cook|satya nadella|bernard arnault)\b",
-                title.strip(),
-            ):
-                score += 12.0
-            if re.search(r"(?i)^jeff williams\b", title.strip()):
-                score -= 10.0
         if topic and re.search(r"(?i)\bcapital of\b", question or ""):
-            capitals = {
-                "peru": "lima",
-                "australia": "canberra",
-                "france": "paris",
-                "japan": "tokyo",
-                "kenya": "nairobi",
-                "canada": "ottawa",
-            }
-            want_city = capitals.get(topic.casefold())
+            want_city = KNOWN_CAPITALS.get(topic.casefold())
             if re.search(r"(?i)^capital of\b", title.strip()):
                 if want_city and re.search(
                     rf"(?i)\b{re.escape(want_city)}\b", text
@@ -2172,18 +2164,11 @@ def search(query: str, limit: int = 5, *, question: str = "") -> list[dict]:
         if place:
             _add(search_wikipedia(f"Capital of {place}", limit=limit))
             _add(search_wikipedia_text(f"capital of {place}", limit=limit))
-            known = {
-                "peru": "Lima",
-                "australia": "Canberra",
-                "france": "Paris",
-                "japan": "Tokyo",
-                "kenya": "Nairobi",
-                "canada": "Ottawa",
-            }
-            city = known.get(place.casefold())
+            city = KNOWN_CAPITALS.get(place.casefold())
             if city:
-                _add(search_wikipedia(city, limit=limit))
-                _add(search_wikipedia_text(f"{city} capital", limit=limit))
+                titled = city[:1].upper() + city[1:]
+                _add(search_wikipedia(titled, limit=limit))
+                _add(search_wikipedia_text(f"{titled} capital", limit=limit))
     for q in queries:
         _add(search_wikipedia(q, limit=limit))
         _add(search_wikipedia_text(q, limit=limit))

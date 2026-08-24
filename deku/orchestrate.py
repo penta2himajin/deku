@@ -2,17 +2,16 @@
 
 Not model planning. Clauses are classified in code; a plan is accepted only
 when it passes explicit invariants (tool allow-list, length, bind rules).
-Legacy catalog builders remain for tests / telemetry labels when shapes match.
 """
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Callable
 
 from deku import multi_hop as mh
 from deku import refuse as refuse_mod
 from deku import route_cues as cues
+from deku import url_read as ur
 from deku import web_search as ws
 
 TOOL_OK = frozenset({
@@ -77,6 +76,9 @@ def classify_clause(clause: str) -> str | None:
         c,
     ):
         return None
+    # Explicit URL → url_read (before web "what/who" cues).
+    if ur.URL_RE.search(c):
+        return "url_read"
     # More specific first.
     if DIFF_CUES.search(c):
         return "diff_search"
@@ -129,163 +131,8 @@ def mixed_tools_without_plan(question: str) -> bool:
     return False
 
 
-def build_git_and_diff(question: str) -> Plan | None:
-    if not (GIT_CUES.search(question or "") and DIFF_CUES.search(question or "")):
-        return None
-    if not re.search(r"(?i)\band\b", question or ""):
-        return None
-    clauses = _clauses(question)
-    if len(clauses) < 2:
-        return None
-    tools = [classify_clause(c) for c in clauses]
-    if tools.count("git_search") != 1 or tools.count("diff_search") != 1:
-        return None
-    if any(t not in ("git_search", "diff_search") for t in tools):
-        return None
-    steps = [
-        Step(tool=t, query=c, bind_prior=False)
-        for c, t in zip(clauses, tools) if t
-    ]
-    if len(steps) != 2:
-        return None
-    return Plan(plan_id="git_and_diff", steps=steps, dependent=False)
-
-
-def build_dir_pair(question: str) -> Plan | None:
-    if not _looks_joined(question):
-        return None
-    clauses = _clauses(question)
-    if len(clauses) < 2:
-        return None
-    tools = [classify_clause(c) for c in clauses]
-    if not all(t == "dir_search" for t in tools):
-        return None
-    steps = [Step(tool="dir_search", query=c) for c in clauses[:3]]
-    return Plan(plan_id="dir_pair", steps=steps, dependent=False)
-
-
-def build_git_pair(question: str) -> Plan | None:
-    """Two independent git history questions joined by and."""
-    if not _looks_joined(question):
-        return None
-    clauses = _clauses(question)
-    if len(clauses) < 2:
-        return None
-    tools = [classify_clause(c) for c in clauses]
-    if not all(t == "git_search" for t in tools):
-        return None
-    steps = [Step(tool="git_search", query=c) for c in clauses[:3]]
-    return Plan(plan_id="git_pair", steps=steps, dependent=False)
-
-
-def _clause_topics(clause: str) -> set[str]:
-    """Rough proper-noun / ALLCAPS topics for relatedness checks."""
-    s = clause or ""
-    out = set()
-    for m in re.finditer(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", s):
-        out.add(extract_norm_topic(m.group(1)))
-    # Single capitalized tokens (Apple, France, Tesla) excluding wh-words.
-    skip = {
-        "who", "what", "when", "where", "which", "the", "a", "an", "how",
-        "why", "is", "are", "was", "were", "of", "and", "or",
-    }
-    for m in re.finditer(r"\b([A-Z][a-z]{1,})\b", s):
-        tok = m.group(1)
-        if tok.casefold() in skip:
-            continue
-        out.add(tok.casefold())
-    for m in re.finditer(r"\b([A-Z]{2,}[A-Z0-9_]*)\b", s):
-        if m.group(1).casefold() not in skip:
-            out.add(m.group(1).casefold())
-    for m in re.finditer(
-        r"(?i)\b(?:of|for)\s+(?:the\s+)?([A-Za-z][A-Za-z0-9.-]+)\b", s
-    ):
-        out.add(m.group(1).casefold())
-    return {t for t in out if t}
-
-
-def extract_norm_topic(text: str) -> str:
-    return re.sub(r"\s+", " ", (text or "").strip()).casefold()
-
-
-def clauses_related(clauses: list[str]) -> bool:
-    """True when joined clauses share a topic or use anaphora."""
-    if len(clauses) < 2:
-        return True
-    if any(mh.needs_prior(c) for c in clauses[1:]):
-        return True
-    topics = [_clause_topics(c) for c in clauses]
-    base = topics[0]
-    if not base:
-        return False
-    for other in topics[1:]:
-        if other & base:
-            return True
-        # Shared stem: Apple / Apple Inc
-        for a in base:
-            for b in other:
-                if a in b or b in a:
-                    return True
-    return False
-
-
-def build_git_and_web(question: str) -> Plan | None:
-    """One git-history clause and one web-fact clause joined by and."""
-    if not _looks_joined(question):
-        return None
-    clauses = _clauses(question)
-    if len(clauses) < 2:
-        return None
-    tools = [classify_clause(c) for c in clauses]
-    if tools.count("git_search") != 1 or tools.count("web_search") != 1:
-        return None
-    if any(t not in ("git_search", "web_search") for t in tools):
-        return None
-    steps = [
-        Step(tool=t, query=c, bind_prior=False)
-        for c, t in zip(clauses, tools) if t
-    ]
-    if len(steps) != 2:
-        return None
-    return Plan(plan_id="git_and_web", steps=steps, dependent=False)
-
-
-def build_web_pair(question: str) -> Plan | None:
-    if not _looks_joined(question):
-        return None
-    clauses = _clauses(question)
-    if len(clauses) < 2:
-        return None
-    tools = [classify_clause(c) for c in clauses]
-    if not all(t == "web_search" for t in tools):
-        return None
-    dependent = any(mh.needs_prior(c) for c in clauses[1:])
-    # Independent web lookups may concern different entities; numbered answers
-    # are fine. Relatedness only affects bind_prior / dependent labelling.
-    steps = []
-    for i, c in enumerate(clauses[:3]):
-        steps.append(
-            Step(tool="web_search", query=c, bind_prior=(i > 0 and mh.needs_prior(c)))
-        )
-    return Plan(
-        plan_id="web_dependent" if dependent else "web_independent",
-        steps=steps,
-        dependent=dependent,
-    )
-
-
-# Legacy catalog (optional fallback / label source). Prefer propose+validate.
-BUILDERS: tuple[Callable[[str], Plan | None], ...] = (
-    build_git_and_diff,
-    build_git_and_web,
-    build_git_pair,
-    build_dir_pair,
-    build_web_pair,
-)
-
-
 def propose_steps(question: str) -> list[Step]:
-    """Liberal clause → step proposal. May include mixes builders never listed."""
+    """Liberal clause → step proposal for any TOOL_OK mix."""
     if refuse_mod.is_hard_refuse(question or ""):
         return []
     if not _looks_joined(question):
@@ -308,7 +155,7 @@ def propose_steps(question: str) -> list[Step]:
     return steps
 
 
-def _legacy_plan_id(steps: list[Step], *, dependent: bool) -> str:
+def plan_id_for(steps: list[Step], *, dependent: bool) -> str:
     """Stable telemetry labels for common shapes; else tool join."""
     tools = [s.tool for s in steps]
     if tools and all(t == "web_search" for t in tools):
@@ -349,27 +196,38 @@ def validate_plan(steps: list[Step] | None) -> Plan | None:
                 return None
     dependent = any(s.bind_prior for s in steps)
     return Plan(
-        plan_id=_legacy_plan_id(steps, dependent=dependent),
+        plan_id=plan_id_for(steps, dependent=dependent),
         steps=list(steps),
         dependent=dependent,
     )
 
 
 def select_and_build(question: str) -> Plan | None:
-    """Propose steps from clauses, then validate — code remains planner of record."""
+    """Propose steps from clauses, then validate — sole planner path."""
     if refuse_mod.is_hard_refuse(question or ""):
         return None
-    plan = validate_plan(propose_steps(question))
-    if plan:
-        return plan
-    # Fallback: legacy builders (should be redundant once propose covers shapes).
-    for build in BUILDERS:
-        built = build(question)
-        if built and len(built.steps) >= 2:
-            if any(s.tool not in TOOL_OK or not s.query.strip() for s in built.steps):
-                continue
-            return built
-    return None
+    return validate_plan(propose_steps(question))
+
+
+def _next_hint(status: str, *, failed: list[dict], reason: str | None = None) -> dict:
+    """Machine-oriented hint for a parent agent after a non-ok outcome."""
+    if status == "partial" and failed:
+        return {
+            "action": "retry_failed_clauses",
+            "clauses": [f.get("query") for f in failed if f.get("query")],
+        }
+    if status == "cannot_answer":
+        return {
+            "action": "abstain_or_narrow",
+            "failed_tool": (failed[0].get("tool") if failed else None),
+            "failed_query": (failed[0].get("query") if failed else None),
+        }
+    if status == "refused":
+        return {
+            "action": "ask_in_scope_fact",
+            "reason": reason or "no_plan",
+        }
+    return {"action": "none"}
 
 
 def _run_one(
@@ -418,6 +276,8 @@ def run(
             "with 'and what/who/when…'."
         )
         out.detail["reason"] = "no_plan"
+        out.detail["cores"] = []
+        out.detail["next_hint"] = _next_hint("refused", failed=[], reason="no_plan")
         return out
     out.detail["plan_id"] = built.plan_id
     out.detail["steps"] = [
@@ -425,6 +285,7 @@ def run(
         for s in built.steps
     ]
     hops: list[tuple[str, str]] = []
+    cores: list[str] = []
     docs: list[str] = []
     rewritten: list[str] = []
     failed: list[dict] = []
@@ -466,15 +327,23 @@ def run(
                     out.detail["rewritten"] = rewritten
                     out.detail["dependent"] = dependent
                     out.detail["failed_steps"] = failed
+                    out.detail["cores"] = cores
+                    out.detail["next_hint"] = _next_hint(
+                        "cannot_answer", failed=failed
+                    )
                     return out
                 break
             continue
-        prior_core = mh.core_from_result(got) or prior_core
+        hop_core = mh.core_from_result(got)
+        if hop_core:
+            cores.append(hop_core)
+        prior_core = hop_core or prior_core
         prior_query = q
         hops.append((q, got.answer.strip()))
     out.detail["rewritten"] = rewritten
     out.detail["dependent"] = dependent
     out.detail["failed_steps"] = failed
+    out.detail["cores"] = cores
     out.document = "\n\n".join(d for d in docs if d)
     if not hops:
         out.status = "cannot_answer"
@@ -487,13 +356,16 @@ def run(
         if failed:
             out.detail["failed_sub"] = failed[0]["query"]
             out.detail["failed_tool"] = failed[0].get("tool")
+        out.detail["next_hint"] = _next_hint("cannot_answer", failed=failed)
         return out
     body = mh.integrate(hops, dependent=dependent and not failed)
     if failed:
         miss = "; ".join(f["query"] for f in failed)
         out.answer = f"{body}\n\n(could not answer: {miss})"
         out.status = "partial"
+        out.detail["next_hint"] = _next_hint("partial", failed=failed)
     else:
         out.answer = body
         out.status = "ok"
+        out.detail["next_hint"] = {"action": "none"}
     return out

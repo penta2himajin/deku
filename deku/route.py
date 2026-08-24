@@ -262,23 +262,34 @@ def dispatch(
     live_answer: bool = True,
     url_fetch=None,
     use_needle_slots: bool = False,
+    audience: str | None = None,
 ) -> Routed:
     """Route then run the chosen tool (stubs for git/diff until implemented)."""
+    import os
+
     from deku import normalize as nz
 
+    aud = (audience or os.environ.get("DEKU_AUDIENCE") or "human").strip().lower()
+    if aud not in refuse_mod.AUDIENCES:
+        aud = "human"
     q, nd = nz.prepare_question(question)
     dec = route(q, router=router)
     out = Routed(
         tool=dec.tool,
         query=dec.query,
         url=dec.url,
-        detail={**nd, **dict(dec.detail)},
+        detail={**nd, **dict(dec.detail), "audience": aud},
     )
     if dec.tool == "refuse":
         reason = dec.detail.get("reason") or refuse_mod.classify(q)
         out.status = "refused"
-        out.answer = refuse_mod.message(reason)
+        out.answer = refuse_mod.message(reason, audience=aud)
         out.detail["reason"] = reason
+        out.detail["cores"] = []
+        out.detail["next_hint"] = {
+            "action": "ask_in_scope_fact",
+            "reason": reason,
+        }
         return out
     if dec.tool == "clarify":
         from deku import clarify as cl
@@ -286,6 +297,10 @@ def dispatch(
         out.status = "clarify"
         out.answer = cl.question_for(q)
         out.detail["reason"] = reason
+        out.detail["next_hint"] = {
+            "action": "provide_path",
+            "reason": reason,
+        }
         return out
     if dec.tool == "url_read":
         got = ur.run(
@@ -315,6 +330,14 @@ def dispatch(
         out.document = got.document
         out.hits = got.hits
         out.detail.update(got.detail)
+        if got.status == "refused" and got.detail.get("reason"):
+            out.answer = refuse_mod.message(
+                str(got.detail["reason"]), audience=aud
+            )
+        if "cores" not in out.detail:
+            out.detail["cores"] = []
+        if "next_hint" not in out.detail:
+            out.detail["next_hint"] = {"action": "none"}
         return out
     if dec.tool == "web_search":
         if not live_answer:
@@ -369,6 +392,33 @@ def dispatch(
         out.detail.update(got.detail)
         return out
     out.status = "refused"
-    out.answer = refuse_mod.message("out_of_scope")
+    out.answer = refuse_mod.message("out_of_scope", audience=aud)
     out.detail["reason"] = "out_of_scope"
+    out.detail["cores"] = []
+    out.detail["next_hint"] = {
+        "action": "ask_in_scope_fact",
+        "reason": "out_of_scope",
+    }
     return out
+
+
+def envelope(got: Routed) -> dict:
+    """Stable machine contract for parent agents / ``deku ask --json``."""
+    d = dict(got.detail or {})
+    cores = d.get("cores")
+    if cores is None:
+        core = d.get("core")
+        cores = [core] if core else []
+    return {
+        "status": got.status,
+        "tool": got.tool,
+        "answer": got.answer,
+        "reason": d.get("reason"),
+        "plan_id": d.get("plan_id"),
+        "cores": cores,
+        "failed_steps": d.get("failed_steps"),
+        "next_hint": d.get("next_hint") or {"action": "none"},
+        "query": got.query,
+        "url": got.url,
+        "detail": d,
+    }

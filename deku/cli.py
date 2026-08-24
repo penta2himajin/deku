@@ -18,6 +18,7 @@ def ask(
     live: bool = True,
     as_json: bool = False,
     use_needle_slots: bool = False,
+    audience: str | None = None,
 ) -> int:
     got = rt.dispatch(
         question,
@@ -26,18 +27,12 @@ def ask(
         root=root,
         live_answer=live,
         use_needle_slots=use_needle_slots,
+        audience=audience,
     )
     if as_json:
         print(
             json.dumps(
-                {
-                    "tool": got.tool,
-                    "status": got.status,
-                    "answer": got.answer,
-                    "query": got.query,
-                    "url": got.url,
-                    "detail": got.detail,
-                },
+                rt.envelope(got),
                 ensure_ascii=False,
                 indent=2,
             )
@@ -47,7 +42,7 @@ def ask(
         if not text:
             text = f"[{got.status}] via {got.tool}"
         print(text)
-    return 0 if got.status in ("ok", "refused", "clarify") else 1
+    return 0 if got.status in ("ok", "refused", "clarify", "partial") else 1
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -87,7 +82,16 @@ def main(argv: list[str] | None = None) -> None:
     ask_p.add_argument(
         "--json",
         action="store_true",
-        help="Print structured Routed result as JSON",
+        help="Print stable envelope JSON (status/tool/cores/next_hint/…)",
+    )
+    ask_p.add_argument(
+        "--audience",
+        default=None,
+        choices=("human", "agent"),
+        help=(
+            "Refuse wording: human prose or agent reason codes "
+            "(default: DEKU_AUDIENCE or human)"
+        ),
     )
 
     args = p.parse_args(argv)
@@ -101,6 +105,7 @@ def main(argv: list[str] | None = None) -> None:
                 live=not args.no_live,
                 as_json=args.json,
                 use_needle_slots=args.needle_slots,
+                audience=args.audience,
             )
         )
     p.error(f"unknown command {args.cmd}")

@@ -1,11 +1,15 @@
 """Explicit refuse messages and out-of-scope classification.
 
-Router `refuse` must tell the user *why*, not return an empty skip.
+Router `refuse` must tell the caller *why*, not return an empty skip.
 Tool-level abstain (`cannot_answer`) stays separate: those tried retrieval
 and failed grounding.
+
+`audience=\"human\"` → full English prose; `audience=\"agent\"` → short reason codes
+for parent agents / `--json` callers.
 """
 from __future__ import annotations
 
+import os
 import re
 
 # Reasons surface in Routed.detail["reason"] and pick a fixed English line.
@@ -17,7 +21,10 @@ REASONS = (
     "underspecified",
     "age",
     "out_of_scope",
+    "no_plan",
 )
+
+AUDIENCES = ("human", "agent")
 
 MESSAGES = {
     "math": (
@@ -50,6 +57,23 @@ MESSAGES = {
         "or join up to three such questions with 'and who/what/when…'. "
         "Opinion and open-ended judgment are out of scope."
     ),
+    "no_plan": (
+        "I could not build a multi-step plan for that. "
+        "Ask one short factual question, or join two clear questions "
+        "with 'and what/who/when…'."
+    ),
+}
+
+# Compact codes for parent agents (stable; do not paraphrase).
+AGENT_MESSAGES = {
+    "math": "refused:math",
+    "code": "refused:code",
+    "chitchat": "refused:chitchat",
+    "deep_reasoning": "refused:deep_reasoning",
+    "underspecified": "refused:underspecified",
+    "age": "refused:age",
+    "out_of_scope": "refused:out_of_scope",
+    "no_plan": "refused:no_plan",
 }
 
 # Hard cues — win over Needle / soft web routing.
@@ -132,8 +156,18 @@ def classify(question: str) -> str:
     return "out_of_scope"
 
 
-def message(reason: str) -> str:
-    return MESSAGES.get(reason, MESSAGES["out_of_scope"])
+def message(reason: str, *, audience: str | None = None) -> str:
+    """Human prose or agent reason-code, depending on audience.
+
+    Audience resolution order: explicit arg → ``DEKU_AUDIENCE`` → ``human``.
+    """
+    aud = (audience or os.environ.get("DEKU_AUDIENCE") or "human").strip().lower()
+    if aud not in AUDIENCES:
+        aud = "human"
+    key = reason if reason in MESSAGES else "out_of_scope"
+    if aud == "agent":
+        return AGENT_MESSAGES.get(key, AGENT_MESSAGES["out_of_scope"])
+    return MESSAGES[key]
 
 
 def is_hard_refuse(question: str) -> bool:
