@@ -46,9 +46,9 @@ MESSAGES = {
     ),
     "out_of_scope": (
         "I cannot handle that request with the available tools. "
-        "Ask one kind of question at a time "
-        "(web fact, repo file, git history, or diff), "
-        "or join two questions of the same kind."
+        "Ask clear factual questions (web fact, repo file, git history, or diff), "
+        "or join up to three such questions with 'and who/what/when…'. "
+        "Opinion and open-ended judgment are out of scope."
     ),
 }
 

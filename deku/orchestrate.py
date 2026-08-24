@@ -1,13 +1,8 @@
-"""A+B weak multi-step plans: select a catalog pattern, build steps in code.
+"""Weak multi-step plans via propose + validate (code is the planner).
 
-Not model planning. Builders are tried in fixed priority; the first that
-produces a ≥2-step plan wins. Ambiguous mixes with no template → no plan
-(caller routes to a single tool or refuse) rather than guessing.
-
-Patterns covered:
-  - web_independent / web_dependent (pronoun / anaphora bind)
-  - dir_pair (two local/repo questions)
-  - git_and_diff (history then working-tree diff)
+Not model planning. Clauses are classified in code; a plan is accepted only
+when it passes explicit invariants (tool allow-list, length, bind rules).
+Legacy catalog builders remain for tests / telemetry labels when shapes match.
 """
 from __future__ import annotations
 
@@ -23,6 +18,7 @@ from deku import web_search as ws
 TOOL_OK = frozenset({
     "web_search", "dir_search", "git_search", "diff_search", "url_read",
 })
+MAX_STEPS = 3
 
 DIR_WORDS = cues.DIR_WORDS
 GIT_CUES = re.compile(
@@ -112,17 +108,22 @@ def _looks_joined(question: str) -> bool:
 
 
 def mixed_tools_without_plan(question: str) -> bool:
-    """Joined question whose clauses map to different tools (no catalog hit)."""
+    """Joined question that cannot form a validated plan (e.g. opinion tail)."""
     if not _looks_joined(question):
         return False
     if select_and_build(question):
         return False
-    tools = {classify_clause(c) for c in _clauses(question)}
+    clauses = _clauses(question)
+    if len(clauses) < 2:
+        return False
+    tools = {classify_clause(c) for c in clauses}
+    # Unclassifiable clause (opinion / hard refuse) → refuse path.
+    if None in tools:
+        return True
     tools.discard(None)
     if len(tools) >= 2:
         return True
-    # Same tool but no catalog plan (e.g. web+opinion tail after classify).
-    if len(tools) == 1 and len(_clauses(question)) >= 2:
+    if len(tools) == 1:
         return True
     return False
 
@@ -272,7 +273,7 @@ def build_web_pair(question: str) -> Plan | None:
     )
 
 
-# First match wins — more specific patterns before generic web.
+# Legacy catalog (optional fallback / label source). Prefer propose+validate.
 BUILDERS: tuple[Callable[[str], Plan | None], ...] = (
     build_git_and_diff,
     build_git_and_web,
@@ -282,16 +283,91 @@ BUILDERS: tuple[Callable[[str], Plan | None], ...] = (
 )
 
 
+def propose_steps(question: str) -> list[Step]:
+    """Liberal clause → step proposal. May include mixes builders never listed."""
+    if refuse_mod.is_hard_refuse(question or ""):
+        return []
+    if not _looks_joined(question):
+        return []
+    clauses = _clauses(question)[:MAX_STEPS]
+    if len(clauses) < 2:
+        return []
+    steps: list[Step] = []
+    for i, c in enumerate(clauses):
+        tool = classify_clause(c)
+        if tool is None:
+            return []
+        steps.append(
+            Step(
+                tool=tool,
+                query=c,
+                bind_prior=(i > 0 and mh.needs_prior(c)),
+            )
+        )
+    return steps
+
+
+def _legacy_plan_id(steps: list[Step], *, dependent: bool) -> str:
+    """Stable telemetry labels for common shapes; else tool join."""
+    tools = [s.tool for s in steps]
+    if tools and all(t == "web_search" for t in tools):
+        return "web_dependent" if dependent else "web_independent"
+    if tools and all(t == "dir_search" for t in tools):
+        return "dir_pair"
+    if tools and all(t == "git_search" for t in tools):
+        return "git_pair"
+    if set(tools) == {"git_search", "diff_search"} and len(tools) == 2:
+        return "git_and_diff"
+    if set(tools) == {"git_search", "web_search"} and len(tools) == 2:
+        return "git_and_web"
+    short = {
+        "web_search": "web",
+        "dir_search": "dir",
+        "git_search": "git",
+        "diff_search": "diff",
+        "url_read": "url",
+    }
+    return "+".join(short.get(t, t) for t in tools)
+
+
+def validate_plan(steps: list[Step] | None) -> Plan | None:
+    """Accept only plans that satisfy harness invariants."""
+    if not steps or len(steps) < 2 or len(steps) > MAX_STEPS:
+        return None
+    for i, s in enumerate(steps):
+        if s.tool not in TOOL_OK:
+            return None
+        if not (s.query or "").strip():
+            return None
+        if refuse_mod.is_hard_refuse(s.query):
+            return None
+        if s.bind_prior:
+            if i == 0:
+                return None
+            if not mh.needs_prior(s.query):
+                return None
+    dependent = any(s.bind_prior for s in steps)
+    return Plan(
+        plan_id=_legacy_plan_id(steps, dependent=dependent),
+        steps=list(steps),
+        dependent=dependent,
+    )
+
+
 def select_and_build(question: str) -> Plan | None:
-    """Try catalog builders in order; return the first ≥2-step plan."""
+    """Propose steps from clauses, then validate — code remains planner of record."""
     if refuse_mod.is_hard_refuse(question or ""):
         return None
+    plan = validate_plan(propose_steps(question))
+    if plan:
+        return plan
+    # Fallback: legacy builders (should be redundant once propose covers shapes).
     for build in BUILDERS:
-        plan = build(question)
-        if plan and len(plan.steps) >= 2:
-            if any(s.tool not in TOOL_OK or not s.query.strip() for s in plan.steps):
+        built = build(question)
+        if built and len(built.steps) >= 2:
+            if any(s.tool not in TOOL_OK or not s.query.strip() for s in built.steps):
                 continue
-            return plan
+            return built
     return None
 
 

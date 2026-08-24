@@ -74,13 +74,16 @@ class TestSelectBuild(unittest.TestCase):
         tools = [s.tool for s in plan.steps]
         self.assertEqual(set(tools), {"git_search", "diff_search"})
 
-    def test_mixed_web_dir_no_plan(self):
-        # Ambiguous mix — do not invent a cross-tool plan.
+    def test_mixed_web_dir_plans(self):
         plan = orch.select_and_build(
             "Who is the CEO of Apple and what is the PREFILL string?"
         )
-        self.assertIsNone(plan)
-        self.assertTrue(
+        self.assertIsNotNone(plan)
+        self.assertEqual(
+            {s.tool for s in plan.steps},
+            {"web_search", "dir_search"},
+        )
+        self.assertFalse(
             orch.mixed_tools_without_plan(
                 "Who is the CEO of Apple and what is the PREFILL string?"
             )

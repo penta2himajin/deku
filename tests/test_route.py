@@ -63,12 +63,12 @@ class TestRuleRoute(unittest.TestCase):
             rt.rule_route("What is NASA?").tool, "web_search"
         )
 
-    def test_mixed_web_dir_refuses(self):
+    def test_mixed_web_dir_plans(self):
         got = rt.rule_route(
             "Who is the CEO of Apple and what is the PREFILL string?"
         )
-        self.assertEqual(got.tool, "refuse")
-        self.assertEqual(got.detail.get("reason"), "out_of_scope")
+        self.assertEqual(got.tool, "multi_hop")
+        self.assertEqual(got.detail.get("plan_id"), "web+dir")
 
     def test_dir_overview(self):
         self.assertEqual(rt.rule_route("What is this project about?").tool, "dir_search")

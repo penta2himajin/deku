@@ -11,7 +11,7 @@ Deterministic (or lightly lexical) machinery:
 - **Route** — pick a tool or `refuse`
 - **Refuse** — fixed English reasons (math, code, chitchat, deep_reasoning, out_of_scope)
 - **Tools** — `web_search`, `dir_search`, `git_search`, `diff_search`, `url_read`
-- **Weak multi-step** — catalog / rule-built plans; optional bind of prior hop core into the next query; integrate (numbered vs one paragraph)
+- **Weak multi-step** — propose clause→tool steps then validate (allow-list, ≤3 steps, bind rules); optional bind of prior hop core into the next query; integrate (numbered vs one paragraph)
 - **Typed slots** — closed labels (`date|place|person|number|org|role`); rule extractors pull a grounded core from the document when registered templates miss; source-sentence / thin typed reply as fallback
 - **Optional Needle** — tool routing and (separately) slot-label suggestion only; never free-form answers or plans. Product smokes measure the rule path without Needle
 - **Hierarchical summary** — map/reduce with extractive leaf anchors (MiniCPM only compresses short notes)
