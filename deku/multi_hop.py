@@ -264,9 +264,20 @@ def _reject_office_glue(name: str | None) -> str | None:
 def core_from_result(got) -> str | None:
     detail = getattr(got, "detail", None) or {}
     core = _reject_office_glue((detail.get("core") or "").strip())
+    # Drop sentence bleed ("Tokyo. Throughout") before binding.
+    if core and re.search(r"\.\s+[A-Za-z]", core):
+        core = core.split(".", 1)[0].strip()
     if core and len(core.split()) <= 6:
         return core
     ans = (getattr(got, "answer", None) or "").strip()
+    # "The capital of Japan is Tokyo." → Tokyo (stop at sentence end)
+    m = re.search(
+        r"(?i)\b(?:capital of|population of)\s+[^.]{0,40}?\bis\s+"
+        r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s*\.",
+        ans,
+    )
+    if m:
+        return _reject_office_glue(m.group(1))
     # "The CEO of Apple is Tim Cook." → Tim Cook
     m = re.search(
         r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s*\.?\s*$", ans

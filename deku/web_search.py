@@ -1747,14 +1747,14 @@ def fact_core_from_doc(question: str, document: str) -> str | None:
     if re.search(r"(?i)\bcapital of\b", question or ""):
         for line in doc.splitlines():
             for pat in (
-                r"\b([A-Z][a-z][A-Za-z.-]*(?:\s+[A-Z][a-z][A-Za-z.-]*)?)\s+is the capital\b",
+                r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+is the capital\b",
                 r"(?i)\bcapital (?:city )?of\s+[^.]{0,40}?\bis\s+"
-                r"([A-Z][a-z][A-Za-z.-]*(?:\s+[A-Z][a-z][A-Za-z.-]*)?)\b",
+                r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b",
             ):
                 mm = re.search(pat, line)
                 if not mm:
                     continue
-                cand = mm.group(1).strip()
+                cand = mm.group(1).strip().rstrip(".")
                 if is_degenerate_core(cand, question):
                     continue
                 if extract.verify(cand, doc):
@@ -2398,6 +2398,9 @@ def is_degenerate_core(core: str | None, question: str = "") -> bool:
     c = (core or "").strip()
     if not c:
         return True
+    # Sentence bleed into the next clause: "Tokyo. Throughout"
+    if re.search(r"\.\s+[A-Za-z]", c):
+        return True
     # Allow short chemical symbols; reject other 1-char crumbs.
     if len(c) < 2:
         return True
@@ -2814,7 +2817,14 @@ def compose_reply(
     if core_ok and is_predecessor_core(core, document, question):
         core_ok = False
     if core_ok and not predicate_supported(question, core, document):
-        core_ok = False
+        # Bio packs for Wikidata CEOs often omit the word "CEO".
+        keep = bool(
+            re.search(r"(?i)\b(ceo|chief executive)\b", question or "")
+            and person_attested(core or "", document)
+            and template_reply(question, core or "", document)
+        )
+        if not keep:
+            core_ok = False
     candidates: list[tuple[float, str, str]] = []
 
     if (

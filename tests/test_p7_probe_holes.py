@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 from unittest import mock
 
@@ -36,6 +37,20 @@ class TestCeoSurnameGrounding(unittest.TestCase):
             )
         )
 
+    def test_ceo_compose_from_bio_without_ceo_word(self):
+        doc = (
+            "Sundar Pichai\n"
+            "Pichai joined Google in 2004, where he led product management.\n"
+        )
+        reply = ws.compose_reply(
+            "Sundar Pichai",
+            "The CEO of Google is Sundar Pichai.",
+            doc,
+            question="Who is the CEO of Google?",
+        )
+        self.assertIsNotNone(reply)
+        self.assertIn("Sundar Pichai", reply)
+
 
 class TestFounderSingular(unittest.TestCase):
     def test_wiki_founders_accepts_singular_field(self):
@@ -47,10 +62,26 @@ class TestFounderSingular(unittest.TestCase):
             "}}\n"
         )
         payload = {"parse": {"wikitext": {"*": wt}}}
-        with mock.patch.object(
-            ws, "_get", return_value=__import__("json").dumps(payload)
-        ):
+        with mock.patch.object(ws, "_get", return_value=json.dumps(payload)):
             self.assertEqual(ws.wiki_founders("SpaceX"), "Elon Musk")
+
+
+class TestCapitalCoreBleed(unittest.TestCase):
+    def test_capital_core_does_not_bleed_next_sentence(self):
+        doc = (
+            "Capital of Japan\n"
+            "The capital of Japan is Tokyo. Throughout history, the "
+            "national capital of Japan has been in locations other than Tokyo.\n"
+        )
+        self.assertEqual(
+            ws.fact_core_from_doc("What is the capital of Japan?", doc),
+            "Tokyo",
+        )
+        self.assertTrue(
+            ws.is_degenerate_core(
+                "Tokyo. Throughout", "What is the capital of Japan?"
+            )
+        )
 
 
 class TestCapitalRanking(unittest.TestCase):
