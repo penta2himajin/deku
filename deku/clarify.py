@@ -21,7 +21,7 @@ _DOC_DEIXIS = re.compile(
 QUESTIONS = {
     "path": (
         "Which file path should I look at? "
-        "For example: deku/route.py"
+        "For example: path/to/file.py"
     ),
     "url": (
         "Which URL should I read? "

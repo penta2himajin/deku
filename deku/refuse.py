@@ -44,7 +44,7 @@ MESSAGES = {
         "or ask two linked factual questions for a shallow multi-hop lookup."
     ),
     "underspecified": (
-        "I need an explicit file path (for example deku/route.py). "
+        "I need an explicit file path (for example path/to/file.py). "
         "I cannot resolve vague references like \"this part\"."
     ),
     "age": (

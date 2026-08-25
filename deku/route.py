@@ -171,7 +171,7 @@ def rule_route(question: str, *, root: str = ".") -> Decision:
                 "reason": "out_of_scope",
             },
         )
-    if DIR_WORDS.search(q):
+    if cues.soft_dir_match(q, root=root):
         return Decision(
             tool="dir_search",
             query=ws.rule_query(q),

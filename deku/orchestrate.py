@@ -85,7 +85,7 @@ def classify_clause(clause: str, *, root: str = ".") -> str | None:
         return "diff_search"
     if GIT_CUES.search(c):
         return "git_search"
-    if cues.has_dir_ident(c, root=root) or DIR_WORDS.search(c):
+    if cues.has_dir_ident(c, root=root) or cues.soft_dir_match(c, root=root):
         return "dir_search"
     if WEB_CUES.search(c):
         return "web_search"

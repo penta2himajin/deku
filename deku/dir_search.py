@@ -26,14 +26,30 @@ SKIP_PATH_PREFIXES = (
     "evals/",  # probes embed foreign Q&A; not part of the product corpus
     "tests/",  # fixtures quote identifiers and poison ranking
 )
+PROSE_CANDIDATES = (
+    "README.md",
+    "README.rst",
+    "README.txt",
+    "README.ja.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "LICENSE.md",
+    "CHANGELOG.md",
+    "CHANGELOG",
+)
+# Fallback when root has no prose files yet (tests with synthetic hits).
 PROSE_PATHS = ("README.md", "AGENTS.md", "CLAUDE.md", "README.ja.md")
 MAX_FILE_BYTES = 200_000
 MAX_CHUNK_CHARS = 900
 
 DIR_SEARCH_CUES = re.compile(
-    r"(?i)\b(project|purpose|overview|harness|readme|about|how does|"
+    r"(?i)\b(project|purpose|overview|readme|about|how does|"
     r"configure|default|timeout|loop|repeat)\b"
 )
+
+_prose_cache: dict[str, tuple[str, ...]] = {}
 
 
 @dataclass
@@ -67,7 +83,7 @@ def question_identifiers(question: str) -> list[str]:
     stop = {
         "what", "when", "where", "which", "does", "this", "that", "with",
         "from", "into", "about", "string", "value", "file", "code", "detect",
-        "project", "purpose", "overview", "default", "harness",
+        "project", "purpose", "overview", "default",
         "defined", "described", "written", "documented", "located", "found",
         "says", "say", "readme",
     }
@@ -86,26 +102,71 @@ def question_identifiers(question: str) -> list[str]:
 _DOC_ALLCAPS = frozenset({"README", "AGENTS", "CLAUDE", "LICENSE", "CHANGELOG"})
 
 
-def corpus_mode(question: str) -> str:
+def clear_prose_cache() -> None:
+    _prose_cache.clear()
+
+
+def prose_paths(root: str | Path = ".") -> tuple[str, ...]:
+    """Top-level prose/doc files that exist under ``root``."""
+    key = str(Path(root).resolve())
+    cached = _prose_cache.get(key)
+    if cached is not None:
+        return cached
+    base = Path(root)
+    found: list[str] = []
+    seen: set[str] = set()
+    if base.is_dir():
+        for name in PROSE_CANDIDATES:
+            if name in seen:
+                continue
+            if (base / name).is_file():
+                seen.add(name)
+                found.append(name)
+        try:
+            for p in sorted(base.glob("README*")):
+                if p.is_file() and p.name not in seen:
+                    seen.add(p.name)
+                    found.append(p.name)
+        except OSError:
+            pass
+    out = tuple(found) if found else PROSE_PATHS
+    _prose_cache[key] = out
+    return out
+
+
+def doc_allcaps_names(root: str | Path = ".") -> frozenset[str]:
+    """Stems of prose docs treated as doc titles, not code constants."""
+    names = set(_DOC_ALLCAPS)
+    for path in prose_paths(root):
+        stem = Path(path).stem
+        if stem:
+            names.add(stem.upper())
+            names.add(stem)
+    return frozenset(names)
+
+
+def corpus_mode(question: str, *, root: str | Path = ".") -> str:
     """code = ALLCAPS(len≥4) / snake_case idents; prose = overview without them."""
     idents = question_identifiers(question)
+    docs = {d.casefold() for d in doc_allcaps_names(root)}
     codeish = [
         i for i in idents
         if (
             ((i.isupper() and len(i) >= 4) or "_" in i or i.endswith((".py", ".md")))
-            and i.casefold() not in {d.casefold() for d in _DOC_ALLCAPS}
+            and i.casefold() not in docs
             and not i.lower().endswith((".md",))
         )
     ]
     # README / overview questions stay prose even if "README" was mentioned.
     if re.search(
-        r"(?i)\b(readme|overview|purpose|this project|about (?:this|deku|the project))\b",
+        r"(?i)\b(readme|overview|purpose|this project|"
+        r"about (?:this|the) (?:project|repo|readme)|"
+        r"this (?:repo|repository))\b",
         question or "",
     ):
-        # Still code mode when a real assignment-style constant remains.
         real_code = [
             i for i in codeish
-            if "_" in i or (i.isupper() and i not in _DOC_ALLCAPS and len(i) >= 4)
+            if "_" in i or (i.isupper() and i.casefold() not in docs and len(i) >= 4)
         ]
         if not real_code:
             return "prose"
@@ -114,6 +175,19 @@ def corpus_mode(question: str) -> str:
 
 def prose_lead_sentence(document: str, question: str | None = None) -> str | None:
     """Best substantial sentence from a README/docs pack (question-aware)."""
+    overview_q = bool(
+        question
+        and re.search(
+            r"(?i)\b(about|overview|purpose|project|readme)\b", question
+        )
+    )
+    models_q = bool(
+        question
+        and re.search(r"(?i)\b(models?|llms?|language models?)\b", question)
+    )
+    server_q = bool(
+        question and re.search(r"(?i)\b(server|wrapper)\b", question)
+    )
     candidates = []
     for line in (document or "").splitlines():
         s = line.strip()
@@ -131,27 +205,23 @@ def prose_lead_sentence(document: str, question: str | None = None) -> str | Non
         if len(sent.split()) < min_words:
             continue
         score = float(extract.term_score(question or "", sent)) if question else 0.0
-        if re.search(r"(?i)\b(harness|local-LLM|MiniCPM)\b", sent):
-            score += 2.0
-        if question and re.search(r"(?i)\b(about|overview|purpose|project)\b", question):
-            if re.search(r"(?i)\b(harness|MiniCPM|local-LLM)\b", sent):
-                score += 6.0
-            if path_map or re.search(r"(?i)\bbin/", sent):
-                score -= 4.0
-        if question and re.search(r"(?i)\b(server|wrapper|mlx)\b", question):
-            if re.search(r"(?i)\bbin/|deku-serve|llama-server|mlx_lm\.server", sent):
-                score += 8.0
-            if path_map and re.search(r"(?i)\bbin/", sent):
-                score += 6.0
-            if re.search(r"(?i)\bwhere\b", question) and not re.search(
-                r"(?i)\bbin/|deku-serve|llama-server", sent
+        # Structural nudges only — no product/model brand names.
+        if path_map:
+            score -= 2.0
+        if overview_q and path_map:
+            score -= 4.0
+        if models_q:
+            if re.search(
+                r"(?i)\b(models?|llms?|language model|\d+[Bb]\b|GGUF|4-bit|quant)\b",
+                sent,
             ):
-                score -= 4.0
-        if question and re.search(r"(?i)\b(models?|minicpm|llms?)\b", question):
-            if re.search(r"(?i)\b(MiniCPM|local-LLM|mlx_lm|4-bit)\b", sent):
-                score += 8.0
-            if path_map or re.search(r"(?i)\bbin/", sent):
-                score -= 5.0
+                score += 4.0
+            if path_map:
+                score -= 6.0
+        if server_q and (
+            path_map or re.search(r"(?i)\b(server|wrapper|bin/)\b", sent)
+        ):
+            score += 3.0
         candidates.append((score, len(sent), sent))
     if not candidates:
         return None
@@ -179,7 +249,8 @@ def looks_overview_question(question: str) -> bool:
     return bool(
         re.search(
             r"(?i)\b(about|purpose|overview|readme|this project|"
-            r"what (?:is|does) (?:this|deku|the readme)|"
+            r"this (?:repo|repository)|"
+            r"what (?:is|does) (?:this|the) (?:project|readme|repo)|"
             r"where (?:is|are) (?:this |the )?project|"
             r"where (?:is|are).{0,40}\bdescribed|"
             r"project described)\b",
@@ -391,15 +462,20 @@ def index_dir(root: Path, *, suffixes: set[str] | None = None) -> list[dict]:
     return hits
 
 
-def rank_chunks(question: str, hits: list[dict], k: int = 4) -> list[dict]:
-    return [h for _, h in rank_chunks_scored(question, hits, k=k)]
+def rank_chunks(question: str, hits: list[dict], k: int = 4, *, root: str | Path = ".") -> list[dict]:
+    return [h for _, h in rank_chunks_scored(question, hits, k=k, root=root)]
 
 
 def rank_chunks_scored(
-    question: str, hits: list[dict], k: int = 4
+    question: str,
+    hits: list[dict],
+    k: int = 4,
+    *,
+    root: str | Path = ".",
 ) -> list[tuple[float, dict]]:
     idents = question_identifiers(question)
-    mode = corpus_mode(question)
+    mode = corpus_mode(question, root=root)
+    prose = set(prose_paths(root))
     scored = []
     for h in hits:
         text = f"{h.get('path', '')} {h.get('title', '')} {h.get('snippet', '')}"
@@ -438,28 +514,32 @@ def rank_chunks_scored(
             if idents and path.endswith("route_cases.py"):
                 score -= 10.0
         else:
-            if path in PROSE_PATHS or path.startswith("docs/"):
+            if path in prose or path.startswith("docs/"):
                 score += 4.0
-            if path == "README.md":
+            name = Path(path).name
+            if name.lower().startswith("readme"):
                 score += 2.0
-        # Topic boosts for common harness questions.
-        if re.search(r"(?i)\b(loop|repetition|repeat)\b", question or ""):
-            if re.search(r"(?i)\b(is_looping|looping|repetition)\b", text):
-                score += 8.0
-        if re.search(r"(?i)\b(server|wrapper|mlx)\b", question or ""):
-            if (
-                "bin/" in path
-                or re.search(r"(?i)deku-serv|llama-server", path + " " + text)
-                or re.search(r"(?i)mlx_lm\.server", text)
-            ):
-                score += 8.0
-        if re.search(r"(?i)\b(models?|minicpm|llms?)\b", question or ""):
-            if path == "README.md":
-                score += 6.0
-            if re.search(r"(?i)\b(MiniCPM|mlx_lm|model)\b", text):
+            # Prefer primary README.md over localized README.<lang> for EN asks.
+            if name == "README.md":
                 score += 3.0
-            if "ling-integration" in path:
-                score -= 4.0
+            elif re.match(r"(?i)README\.[a-z]{2}", name) and not re.search(
+                r"[\u3040-\u30ff\u4e00-\u9fff]", question or ""
+            ):
+                score -= 3.0
+        # Class-general topic nudges (no product brand names).
+        if re.search(r"(?i)\b(loop|repetition|repeat)\b", question or ""):
+            if re.search(r"(?i)\b(loop|repetition|repeat)\b", text):
+                score += 4.0
+        if re.search(r"(?i)\b(server|wrapper)\b", question or ""):
+            if re.search(r"(?i)\b(server|wrapper|bin/)\b", path + " " + text):
+                score += 4.0
+        if re.search(r"(?i)\b(models?|llms?|language models?)\b", question or ""):
+            if Path(path).name.lower().startswith("readme"):
+                score += 4.0
+            if re.search(
+                r"(?i)\b(models?|llms?|language model|\d+[Bb]\b|GGUF)\b", text
+            ):
+                score += 2.0
         scored.append((score, h))
     scored.sort(key=lambda x: (-x[0], hits.index(x[1]) if x[1] in hits else 0))
     return scored[:k]
@@ -496,8 +576,8 @@ def hits_to_document(hits: list[dict], *, snippet_chars: int = 700) -> str:
 
 
 def prose_file_document(root: Path, path: str, *, max_chars: int = 12_000) -> str | None:
-    """Load a product README/AGENTS file for question-aware lead selection."""
-    if path not in PROSE_PATHS:
+    """Load a top-level prose doc for question-aware lead selection."""
+    if path not in prose_paths(root):
         return None
     p = Path(root) / path
     if not p.is_file():
@@ -523,7 +603,8 @@ def run(
     from deku import hier_summary as hs
 
     intent = rule_intent(question)
-    mode = corpus_mode(question)
+    mode = corpus_mode(question, root=root)
+    prose = prose_paths(root)
     out = Result(
         intent=intent,
         detail={"router": "rule", "root": str(root), "mode": mode},
@@ -533,7 +614,7 @@ def run(
         return out
     if hs.wants_summary(question or ""):
         parts = []
-        for name in ("README.md", "AGENTS.md"):
+        for name in prose:
             p = Path(root) / name
             if p.is_file():
                 try:
@@ -555,21 +636,36 @@ def run(
     corpus = hits if hits is not None else index_dir(Path(root))
     out.detail["raw_hits"] = len(corpus)
     if mode == "prose":
+        prose_set = set(prose)
         prose_only = [
             h for h in corpus
-            if (h.get("path") or "") in PROSE_PATHS
+            if (h.get("path") or "") in prose_set
             or (h.get("path") or "").startswith("docs/")
             or (h.get("path") or "").endswith(".md")
         ]
         if prose_only:
-            # Product README/AGENTS beat research notes for overview/model Qs.
-            if re.search(r"(?i)\b(about|overview|purpose|project|readme|models?|minicpm|llms?)\b", question or ""):
-                product = [h for h in prose_only if (h.get("path") or "") in PROSE_PATHS]
+            # Prefer top-level product docs for overview / model-class asks.
+            if re.search(
+                r"(?i)\b(about|overview|purpose|project|readme|models?|llms?)\b",
+                question or "",
+            ):
+                product = [h for h in prose_only if (h.get("path") or "") in prose_set]
+                if product and not re.search(
+                    r"[\u3040-\u30ff\u4e00-\u9fff]", question or ""
+                ):
+                    primary = [
+                        h for h in product
+                        if Path(h.get("path") or "").name == "README.md"
+                    ]
+                    if primary:
+                        product = primary + [
+                            h for h in product if h not in primary
+                        ]
                 corpus = product or prose_only
             else:
                 corpus = prose_only
             out.detail["prose_filtered"] = True
-    scored = rank_chunks_scored(question, corpus, k=k)
+    scored = rank_chunks_scored(question, corpus, k=k, root=root)
     out.hits = [h for _, h in scored]
     if not scored:
         out.status = "no_hits"
@@ -702,13 +798,13 @@ def run(
             ):
                 use_summary = False
                 out.detail["summary_rejected"] = "lead_covers_better"
-            elif re.search(r"(?i)\b(models?|minicpm|llms?)\b", question or ""):
-                if re.search(r"(?i)MiniCPM", lead) and not re.search(
-                    r"(?i)MiniCPM", summary
+            elif re.search(r"(?i)\b(models?|llms?|language models?)\b", question or ""):
+                if re.search(
+                    r"(?i)\b(models?|llms?|language model|\d+[Bb]\b|GGUF)\b", lead
+                ) and not re.search(
+                    r"(?i)\b(models?|llms?|language model|\d+[Bb]\b|GGUF)\b",
+                    summary,
                 ):
-                    use_summary = False
-                    out.detail["summary_rejected"] = "summary_misses_minicpm"
-                elif not re.search(r"(?i)\b(MiniCPM|LLM|model)\b", summary):
                     use_summary = False
                     out.detail["summary_rejected"] = "summary_misses_model"
         if use_summary:

@@ -201,7 +201,7 @@ class TestProseLead(unittest.TestCase):
             "client.py    # CLI client (Python stdlib only — keep it dependency-free)\n"
             "bin/         # deku-serve (mlx_lm.server wrapper)\n"
         )
-        lead = ds.prose_lead_sentence(doc, "Where is the default mlx server wrapper?")
+        lead = ds.prose_lead_sentence(doc, "Where is the default server wrapper?")
         self.assertIsNotNone(lead)
         self.assertIn("bin/", lead)
 
