@@ -36,15 +36,9 @@ NONSEARCH = re.compile(
     r"implement |fn |def )"
 )
 
-# Shared place→capital map for ranking and search enrichment (lowercase keys).
-KNOWN_CAPITALS = {
-    "peru": "lima",
-    "australia": "canberra",
-    "france": "paris",
-    "japan": "tokyo",
-    "kenya": "nairobi",
-    "canada": "ottawa",
-}
+# Shared place→capital map removed (closed entity table). Ranking uses
+# "Capital of {place}" / "is the capital" lexical cues instead.
+KNOWN_CAPITALS: dict[str, str] = {}
 
 
 @dataclass
@@ -119,9 +113,8 @@ def expand_search_queries(question: str, query: str) -> list[str]:
     if m:
         place = m.group(1).strip()
         out.insert(0, f"{place}")
+        out.insert(0, f"Capital of {place}")
         out.append(f"capital of {place}")
-        if place.casefold() == "france":
-            out.insert(0, "Paris")
     m = re.search(r"(?i)^\s*who founded (.+?)\??\s*$", q)
     if m:
         org = m.group(1).strip()
@@ -129,7 +122,6 @@ def expand_search_queries(question: str, query: str) -> list[str]:
         if re.fullmatch(r"(?i)tesla", org):
             out.insert(0, "Tesla, Inc.")
         out.append(f"{org} founder")
-        out.append(f"Bill Gates {org}")
     m = re.search(r"(?i)chemical symbol for (\w+)", q)
     if m:
         elem = m.group(1)
@@ -202,9 +194,8 @@ def expand_search_queries(question: str, query: str) -> list[str]:
         who = m.group(1).strip().rstrip("?.")
         out.insert(0, who)
         if re.search(r"(?i)current emperor of japan", who):
-            out.insert(0, "Naruhito")
-            out.insert(0, "Naruhito birthday")
-            out.append("Emperor of Japan")
+            out.insert(0, "Emperor of Japan")
+            out.append("Emperor of Japan birthday")
         else:
             out.insert(0, f"{who} birthday")
             out.append(f"{who} born")
@@ -219,9 +210,9 @@ def expand_search_queries(question: str, query: str) -> list[str]:
     )
     if m:
         role, place = m.group(1).lower(), m.group(2).strip()
-        if role == "emperor" and re.search(r"(?i)japan", place):
-            out.insert(0, "Naruhito")
-            out.append("Emperor of Japan")
+        if role == "emperor":
+            out.insert(0, f"Emperor of {place}")
+            out.append(f"{place} emperor")
         elif role == "prime minister":
             out.insert(0, f"Prime Minister of {place}")
             out.append(f"{place} prime minister")
@@ -990,7 +981,7 @@ def enrich_hits_for_answer(
                     if m:
                         who = m.group(1).strip().rstrip("?.")
                 if who and re.search(r"(?i)current emperor of japan", who):
-                    who = "Naruhito"
+                    who = wiki_incumbent_from_page("Emperor of Japan") or who
                 if who and re.fullmatch(re.escape(who), title.strip(), flags=re.I):
                     bdate = wiki_birth_date(title)
                     if bdate:
@@ -1127,6 +1118,13 @@ def rank_hits_scored(
         if topic:
             if hit_title_matches_topic(title, topic):
                 score += 6.0
+            elif (
+                want_ceo
+                and has_person_name(title)
+                and topic.casefold() in text.casefold()
+            ):
+                # Person page about the asked company — not a topic near-miss.
+                score += 4.0
             else:
                 # Near-miss titles (Perugia≈Peru, novel≠play) get pushed down.
                 score -= 8.0
@@ -1175,11 +1173,27 @@ def rank_hits_scored(
                     text,
                 ):
                     score += 8.0
-                if re.search(
-                    rf"(?i)^(bernard arnault|tim cook|satya nadella)\b",
-                    title.strip(),
-                ) and company.casefold() in ("apple", "microsoft"):
-                    score += 6.0
+                elif re.search(
+                    r"(?i)\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\b.{0,40}"
+                    r"\b(chairman and )?(chief executive|ceo)\b|"
+                    r"\b(chairman and )?(chief executive|ceo)\b.{0,40}"
+                    r"\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\b",
+                    text,
+                ) and re.search(rf"(?i)\b{re.escape(company)}\b", text):
+                    # Corp titles contain "Inc." which blanks has_person_name(text).
+                    score += 8.0
+            snip = h.get("snippet") or ""
+            personish = (
+                has_person_name(title)
+                or has_person_name(snip)
+                or bool(
+                    re.search(r"\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\b", snip)
+                    and re.search(r"(?i)\b(ceo|chief executive)\b", snip)
+                )
+            )
+            if not personish:
+                # Bare company page without a named officer.
+                score -= 10.0
             if re.search(
                 r"(?i)\b(previously served|former ceo|until 201[0-9]|"
                 r"watches?\s*&\s*jewelry|tag heuer)\b",
@@ -1192,14 +1206,25 @@ def rank_hits_scored(
                 if looks_current_office(text):
                     score += 8.0
         if topic and re.search(r"(?i)\bcapital of\b", question or ""):
-            want_city = KNOWN_CAPITALS.get(topic.casefold())
+            states_capital = bool(
+                re.search(
+                    rf"(?i)\bis the capital of\s+{re.escape(topic)}\b|"
+                    rf"\bcapital of\s+{re.escape(topic)}\s+is\b|"
+                    r"\bis the capital\b",
+                    text,
+                )
+            )
+            capital_title = bool(
+                re.search(
+                    rf"(?i)^capital of\s+{re.escape(topic)}\b",
+                    title.strip(),
+                )
+            )
             if re.search(r"(?i)^capital of\b", title.strip()):
-                if want_city and re.search(
-                    rf"(?i)\b{re.escape(want_city)}\b", text
-                ) and re.search(r"(?i)\bis the capital\b", text):
+                if capital_title and states_capital:
                     score += 24.0
-                elif want_city and re.search(
-                    rf"(?i)\b{re.escape(want_city)}\b|\bis the capital\b", text
+                elif capital_title or (
+                    topic.casefold() in text.casefold() and states_capital
                 ):
                     score += 18.0
                 elif re.search(r"(?i)\b([A-Z][a-z]+)\s+is the capital\b", text):
@@ -1208,18 +1233,22 @@ def rank_hits_scored(
                     score -= 12.0
             if re.fullmatch(re.escape(topic), title.strip(), flags=re.I):
                 # Bare country/org page: only boost when it states the capital.
-                if want_city and re.search(
-                    rf"(?i)\b{re.escape(want_city)}\b|\bis the capital\b", text
-                ):
+                if states_capital:
                     score += 10.0
-                elif want_city:
-                    score -= 6.0
                 else:
-                    score += 10.0
-            if want_city and re.fullmatch(want_city, title.strip(), flags=re.I):
+                    score -= 6.0
+            # City (or other) page that asserts it is the capital of the topic.
+            if re.search(
+                rf"(?i)\b{re.escape(title.strip())}\s+is the capital of\s+"
+                rf"{re.escape(topic)}\b",
+                text,
+            ):
                 score += 22.0
-            elif want_city and re.search(
-                rf"(?i)\b{re.escape(want_city)}\s+is the capital\b", text
+            elif (
+                states_capital
+                and topic.casefold() in text.casefold()
+                and not re.fullmatch(re.escape(topic), title.strip(), flags=re.I)
+                and not re.search(r"(?i)^capital of\b", title.strip())
             ):
                 score += 8.0
         want_president = bool(re.search(r"(?i)\bpresident\b", question or ""))
@@ -1243,9 +1272,13 @@ def rank_hits_scored(
                 score += 6.0
             if re.search(r"(?i)^presidency of\b", title.strip()):
                 score += 4.0
-                # Present-tense "who is" → prefer the current office-holder.
+                # Present-tense "who is" → prefer current-looking tenure cues.
                 if re.search(r"(?i)\bwho is\b", question or ""):
-                    if re.search(r"(?i)\b(macron|since 2017|since 2018|since 2019|since 202)\b", text):
+                    if re.search(
+                        r"(?i)\b(since 201[789]|since 202\d|has served as president|"
+                        r"incumbent)\b",
+                        text,
+                    ):
                         score += 8.0
                     elif re.search(
                         r"(?i)\b(de gaulle|pompidou|giscard|mitterrand|chirac|sarkozy|hollande|"
@@ -1253,8 +1286,6 @@ def rank_hits_scored(
                         text,
                     ):
                         score -= 6.0
-            if re.search(r"(?i)^emmanuel macron\b", title.strip()):
-                score += 10.0
             if re.search(r"(?i)^president of\b", title.strip()) and not has_person_name(text):
                 score -= 3.0
             if re.search(r"(?i)\b(brigitte|wife|spouse|seminary|princeton|fifa)\b", text):
@@ -1508,7 +1539,7 @@ def rank_hits_scored(
                 if m:
                     who = m.group(1).strip().rstrip("'s").strip()
             if who and re.search(r"(?i)current emperor of japan", who):
-                who = "Naruhito"
+                who = wiki_incumbent_from_page("Emperor of Japan") or who
             if re.search(r"(?i)\(born\s+\d|\bborn\s+\d|\bborn on\b", text):
                 score += 4.0
             if re.search(
@@ -1522,14 +1553,9 @@ def rank_hits_scored(
                     score -= 10.0
                 elif who.casefold() not in title.casefold():
                     score -= 14.0
-            if re.search(r"(?i)current emperor of japan", question or ""):
-                if re.fullmatch(r"(?i)naruhito", title.strip()):
-                    score += 14.0
-                elif re.search(r"(?i)^naruhito\b", title.strip()):
-                    score += 6.0
         if re.search(r"(?i)\bwho is the current emperor of japan\b", question or ""):
-            if re.fullmatch(r"(?i)naruhito", title.strip()):
-                score += 16.0
+            if re.search(r"(?i)^emperor of japan\b", title.strip()):
+                score += 10.0
             elif re.search(r"(?i)emperor.?s birthday|public holiday", title):
                 score -= 12.0
         if re.search(r"(?i)\bchemical symbol\b", question or ""):
@@ -1718,8 +1744,22 @@ def fact_core_from_doc(question: str, document: str) -> str | None:
             rf"(?i)\b{re.escape(title_line)}\b is Emperor", doc
         ):
             return title_line
-        if re.search(r"(?i)\bNaruhito is Emperor", doc):
-            return "Naruhito"
+        mm = re.search(
+            r"(?i)\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+is Emperor of Japan\b",
+            doc,
+        )
+        if mm and extract.verify(mm.group(1).split()[0], doc):
+            return mm.group(1).strip()
+        # Person bio: title + accession / throne language (no closed name table).
+        if title_line and (
+            has_person_name(title_line)
+            or re.fullmatch(r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*", title_line)
+        ):
+            if re.search(
+                r"(?i)\b(chrysanthemum throne|acceded|is Emperor|Emperor of Japan)\b",
+                doc,
+            ) and extract.norm(title_line) in extract.norm(doc):
+                return title_line
     if re.search(r"(?i)\bwho founded\b", question or ""):
         if (
             re.fullmatch(r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+", title_line or "")
@@ -2112,12 +2152,12 @@ def search(query: str, limit: int = 5, *, question: str = "") -> list[dict]:
                     if short and short.casefold() != name.casefold():
                         _add(search_wikipedia(short, limit=limit))
             if re.search(r"(?i)\bemperor\b", question or query or ""):
-                _add(search_wikipedia("Naruhito", limit=limit))
-                _add(search_wikipedia_text("Naruhito Emperor of Japan", limit=limit))
                 _add(search_wikipedia("Emperor of Japan", limit=limit))
+                _add(search_wikipedia_text("Emperor of Japan", limit=limit))
                 name = wiki_incumbent_from_page("Emperor of Japan")
                 if name:
                     _add(search_wikipedia(name, limit=limit))
+                    _add(search_wikipedia_text(name, limit=limit))
             if re.search(r"(?i)\bpresident\b", question or query or ""):
                 _add(search_wikipedia_text(f"{entity} president", limit=limit))
                 _add(search_wikipedia(f"President of {entity}", limit=limit))
@@ -2165,11 +2205,6 @@ def search(query: str, limit: int = 5, *, question: str = "") -> list[dict]:
         if place:
             _add(search_wikipedia(f"Capital of {place}", limit=limit))
             _add(search_wikipedia_text(f"capital of {place}", limit=limit))
-            city = KNOWN_CAPITALS.get(place.casefold())
-            if city:
-                titled = city[:1].upper() + city[1:]
-                _add(search_wikipedia(titled, limit=limit))
-                _add(search_wikipedia_text(f"{titled} capital", limit=limit))
     for q in queries:
         _add(search_wikipedia(q, limit=limit))
         _add(search_wikipedia_text(q, limit=limit))
@@ -3332,8 +3367,8 @@ def run(question: str, *, router: str = "rule", k: int = 4,
         return population_figure_grounded(val, doc)
 
     if classless:
-        # Classless: typed shapes (date/number/place) + MiniCPM extract first;
-        # closed fact_core / relation priority only as last-resort fallbacks.
+        # Classless: typed shapes (date/number/place); prefer attested office
+        # incumbents over MiniCPM; closed fact_core only as last resort.
         if (
             typed
             and slot in ("date", "number", "place")
@@ -3341,30 +3376,28 @@ def run(question: str, *, router: str = "rule", k: int = 4,
             and _pop_ok(typed)
         ):
             core, status = typed, "typed_core"
+        elif (
+            office_core
+            and core_fits_question(question, office_core)
+            and not is_predecessor_core(office_core, doc, question)
+        ):
+            core, status = office_core, "title_core"
+        elif inc_core and core_fits_question(question, inc_core):
+            core, status = inc_core, "incumbent_core"
+        elif (
+            wd_ceo
+            and not core_echoes_topic(question, wd_ceo)
+            and (
+                out.detail.get("ceo_fetched")
+                or extract.norm(wd_ceo) in extract.norm(doc)
+                or extract.norm(_strip_article(wd_ceo)) in extract.norm(doc)
+            )
+        ):
+            core, status = wd_ceo, "wikidata_ceo"
         else:
             core, status = minicpm_extract(question, doc, seed=seed)
             if core and not _pop_ok(core):
                 core = None
-            if (not core or not core_fits_question(question, core)) and office_core:
-                if not is_predecessor_core(office_core, doc, question):
-                    core, status = office_core, "title_core"
-            if (
-                (not core or not core_fits_question(question, core))
-                and wd_ceo
-                and not core_echoes_topic(question, wd_ceo)
-                and (
-                    out.detail.get("ceo_fetched")
-                    or extract.norm(wd_ceo) in extract.norm(doc)
-                    or extract.norm(_strip_article(wd_ceo)) in extract.norm(doc)
-                )
-            ):
-                core, status = wd_ceo, "wikidata_ceo"
-            if (
-                (not core or not core_fits_question(question, core))
-                and inc_core
-                and core_fits_question(question, inc_core)
-            ):
-                core, status = inc_core, "incumbent_core"
             if (not core or not core_fits_question(question, core)) and fact and _pop_ok(
                 fact
             ):
@@ -3428,7 +3461,40 @@ def run(question: str, *, router: str = "rule", k: int = 4,
         )
     ):
         out.detail["core_rejected"] = core
+        rejected = core
         core, status = None, "core_rejected"
+        for cand, st in (
+            (office_core, "title_core"),
+            (inc_core, "incumbent_core"),
+            (wd_ceo, "wikidata_ceo"),
+            (fact, "doc_core"),
+        ):
+            if not cand or extract.norm(cand) == extract.norm(rejected):
+                continue
+            if st == "wikidata_ceo" and (
+                core_echoes_topic(question, cand)
+                or not (
+                    out.detail.get("ceo_fetched")
+                    or extract.norm(cand) in extract.norm(doc)
+                    or extract.norm(_strip_article(cand)) in extract.norm(doc)
+                )
+            ):
+                continue
+            if (
+                not core_fits_question(question, cand)
+                or is_degenerate_core(cand, question)
+                or core_echoes_topic(question, cand)
+                or is_predecessor_core(cand, doc, question)
+            ):
+                continue
+            if not predicate_supported(question, cand, doc) and not (
+                st == "wikidata_ceo" and out.detail.get("ceo_fetched")
+            ):
+                continue
+            if st == "doc_core" and not _pop_ok(cand):
+                continue
+            core, status = cand, st
+            break
     out.detail["core"] = core
     out.detail["extract_status"] = status
     if should_abstain(question=question, doc=doc, score=top_score, core=core):
