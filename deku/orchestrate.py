@@ -64,7 +64,7 @@ class Result:
     detail: dict = field(default_factory=dict)
 
 
-def classify_clause(clause: str) -> str | None:
+def classify_clause(clause: str, *, root: str = ".") -> str | None:
     """Map one clause to a single retrieval tool, or None if unclear."""
     c = clause or ""
     if refuse_mod.is_hard_refuse(c):
@@ -85,7 +85,7 @@ def classify_clause(clause: str) -> str | None:
         return "diff_search"
     if GIT_CUES.search(c):
         return "git_search"
-    if cues.has_dir_ident(c) or DIR_WORDS.search(c):
+    if cues.has_dir_ident(c, root=root) or DIR_WORDS.search(c):
         return "dir_search"
     if WEB_CUES.search(c):
         return "web_search"
@@ -96,12 +96,12 @@ def _clauses(question: str) -> list[str]:
     return [c for c in mh.decompose(question) if c.strip()]
 
 
-def _looks_joined(question: str) -> bool:
+def _looks_joined(question: str, *, root: str = ".") -> bool:
     q = question or ""
     if JOIN_CUES.search(q):
         return True
     # Two code constants joined by and.
-    if len(cues.dir_idents(q)) >= 2 and re.search(r"(?i)\band\b", q):
+    if len(cues.dir_idents(q, root=root)) >= 2 and re.search(r"(?i)\band\b", q):
         return True
     if GIT_CUES.search(q) and DIFF_CUES.search(q) and re.search(r"(?i)\band\b", q):
         return True
@@ -111,16 +111,16 @@ def _looks_joined(question: str) -> bool:
     return False
 
 
-def mixed_tools_without_plan(question: str) -> bool:
+def mixed_tools_without_plan(question: str, *, root: str = ".") -> bool:
     """Joined question that cannot form a validated plan (e.g. opinion tail)."""
-    if not _looks_joined(question):
+    if not _looks_joined(question, root=root):
         return False
-    if select_and_build(question):
+    if select_and_build(question, root=root):
         return False
     clauses = _clauses(question)
     if len(clauses) < 2:
         return False
-    tools = {classify_clause(c) for c in clauses}
+    tools = {classify_clause(c, root=root) for c in clauses}
     # Unclassifiable clause (opinion / hard refuse) → refuse path.
     if None in tools:
         return True
@@ -132,18 +132,18 @@ def mixed_tools_without_plan(question: str) -> bool:
     return False
 
 
-def propose_steps(question: str) -> list[Step]:
+def propose_steps(question: str, *, root: str = ".") -> list[Step]:
     """Liberal clause → step proposal for any TOOL_OK mix."""
     if refuse_mod.is_hard_refuse(question or ""):
         return []
-    if not _looks_joined(question):
+    if not _looks_joined(question, root=root):
         return []
     clauses = _clauses(question)[:MAX_STEPS]
     if len(clauses) < 2:
         return []
     steps: list[Step] = []
     for i, c in enumerate(clauses):
-        tool = classify_clause(c)
+        tool = classify_clause(c, root=root)
         if tool is None:
             return []
         steps.append(
@@ -203,11 +203,11 @@ def validate_plan(steps: list[Step] | None) -> Plan | None:
     )
 
 
-def select_and_build(question: str) -> Plan | None:
+def select_and_build(question: str, *, root: str = ".") -> Plan | None:
     """Propose steps from clauses, then validate — sole planner path."""
     if refuse_mod.is_hard_refuse(question or ""):
         return None
-    return validate_plan(propose_steps(question))
+    return validate_plan(propose_steps(question, root=root))
 
 
 def _run_one(
@@ -247,7 +247,7 @@ def run(
 ) -> Result:
     """Select (unless `plan` given) and execute a weak multi-step plan."""
     out = Result(detail={"mode": "orchestrate"})
-    built = plan or select_and_build(question)
+    built = plan or select_and_build(question, root=root)
     if not built:
         out.status = "refused"
         out.answer = (

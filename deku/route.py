@@ -34,7 +34,7 @@ TOOL_RE = re.compile(
 NONSEARCH = ws.NONSEARCH
 WEB_CUES = ws.SEARCH_CUES
 DIR_WORDS = cues.DIR_WORDS
-# Back-compat pattern; hard_route uses cues.has_dir_ident (no LVMH/NASA).
+# Back-compat pattern; hard_route uses cues.has_dir_ident (repo discovery).
 DIR_IDENT = re.compile(r"\b(?:PREFILL|MAX_TOKENS|[A-Z][A-Z0-9]*_[A-Z0-9_]+)\b")
 GIT_CUES = re.compile(
     r"(?i)\b(last commit|git (?:log|show|blame|history)|who (?:changed|committed)|"
@@ -86,7 +86,7 @@ def extract_url(text: str) -> str | None:
     return ur.extract_url(text)
 
 
-def hard_route(question: str) -> Decision | None:
+def hard_route(question: str, *, root: str = ".") -> Decision | None:
     """High-confidence cues that must not be overridden by Needle."""
     from deku import normalize as nz
 
@@ -109,14 +109,14 @@ def hard_route(question: str) -> Decision | None:
         )
     # Compound plans beat a single hard cue (e.g. git+diff, two ALLCAPS).
     from deku import orchestrate as orch
-    plan = orch.select_and_build(q)
+    plan = orch.select_and_build(q, root=root)
     if plan and len(plan.steps) >= 2:
         return Decision(
             tool="multi_hop",
             query=ws.rule_query(q),
             detail={"cue": "plan", "plan_id": plan.plan_id},
         )
-    if orch.mixed_tools_without_plan(q):
+    if orch.mixed_tools_without_plan(q, root=root):
         return Decision(
             tool="refuse",
             detail={
@@ -128,7 +128,7 @@ def hard_route(question: str) -> Decision | None:
         return Decision(tool="diff_search", detail={"cue": "diff"})
     if GIT_CUES.search(q):
         return Decision(tool="git_search", detail={"cue": "git"})
-    if cues.has_dir_ident(q):
+    if cues.has_dir_ident(q, root=root):
         return Decision(
             tool="dir_search",
             query=ws.rule_query(q),
@@ -146,22 +146,22 @@ def hard_route(question: str) -> Decision | None:
     return None
 
 
-def rule_route(question: str) -> Decision:
+def rule_route(question: str, *, root: str = ".") -> Decision:
     """Deterministic tool choice. Hard cues first, then soft lexical cues."""
     q, nd = nz.prepare_question(question)
-    hard = hard_route(q)
+    hard = hard_route(q, root=root)
     if hard:
         hard.detail = {**nd, **hard.detail, "router": "rule"}
         return hard
     from deku import orchestrate as orch
-    plan = orch.select_and_build(q)
+    plan = orch.select_and_build(q, root=root)
     if plan and len(plan.steps) >= 2:
         return Decision(
             tool="multi_hop",
             query=ws.rule_query(q),
             detail={**nd, "router": "rule", "cue": "plan", "plan_id": plan.plan_id},
         )
-    if orch.mixed_tools_without_plan(q):
+    if orch.mixed_tools_without_plan(q, root=root):
         return Decision(
             tool="refuse",
             detail={
@@ -190,16 +190,16 @@ def rule_route(question: str) -> Decision:
     )
 
 
-def needle_route(question: str) -> Decision:
+def needle_route(question: str, *, root: str = ".") -> Decision:
     """Needle tool-call → one of TOOLS. Hard cues win; else Needle; else rule."""
-    hard = hard_route(question)
+    hard = hard_route(question, root=root)
     if hard:
         hard.detail = {**hard.detail, "router": "needle", "hard": True}
         return hard
     try:
         from needle import Needle, tool, Field
     except ImportError:
-        d = rule_route(question)
+        d = rule_route(question, root=root)
         d.detail["router"] = "needle_fallback_rule"
         return d
 
@@ -252,15 +252,15 @@ def needle_route(question: str) -> Decision:
             n.reset()
         except Exception:
             pass
-    d = rule_route(question)
+    d = rule_route(question, root=root)
     d.detail["router"] = "needle_fallback_rule"
     return d
 
 
-def route(question: str, *, router: str = "rule") -> Decision:
+def route(question: str, *, router: str = "rule", root: str = ".") -> Decision:
     if router == "needle":
-        return needle_route(question)
-    return rule_route(question)
+        return needle_route(question, root=root)
+    return rule_route(question, root=root)
 
 
 def dispatch(
@@ -283,7 +283,7 @@ def dispatch(
     if aud not in refuse_mod.AUDIENCES:
         aud = "human"
     q, nd = nz.prepare_question(question)
-    dec = route(q, router=router)
+    dec = route(q, router=router, root=root)
     out = Routed(
         tool=dec.tool,
         query=dec.query,

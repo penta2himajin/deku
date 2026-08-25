@@ -8,7 +8,8 @@ Engineering notes for deku. Product intro: [README.md](../README.md).
 
 Deterministic (or lightly lexical) machinery:
 
-- **Route** — pick a tool or `refuse`
+- **Route** — pick a tool or `refuse` (bare ALLCAPS repo constants via
+  discovery of config-like assignments under `--root`, not a fixed allowlist)
 - **Refuse** — fixed English reasons (math, code, chitchat, deep_reasoning, out_of_scope)
 - **Tools** — `web_search`, `dir_search`, `git_search`, `diff_search`, `url_read`
 - **Weak multi-step** — propose clause→tool steps then validate (allow-list, ≤3 steps, bind rules; tools include `url_read`); optional bind of prior hop core; integrate; expose `cores` / `next_hint` for parent agents (`deku.hints.next_hint_for` maps status + abstain_reason → action codes)
