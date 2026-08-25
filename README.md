@@ -95,6 +95,7 @@ uv run python -m unittest discover -s tests
 | `mise run test` | unit tests (no GPU / no weights) |
 | `mise run doctor` | PATH / Python / GGUF readiness |
 | `mise run capability-smoke` | Live GGUF smokes (refuse / web / url / hop / git / dir) |
+| `mise run p7-probes` | Live P7+ composition probes → `evals/results/p7_composition_probes.json` |
 | `mise run serve` | ensure GGUF → `llama-server --jinja` |
 | `mise run smoke` | one `llm.complete()` against `DEKU_URL` |
 
@@ -109,6 +110,9 @@ Live capability smokes (needs `mise run serve` + network):
 ```bash
 mise run capability-smoke
 # writes evals/results/capability_smoke.json
+
+mise run p7-probes
+# writes evals/results/p7_composition_probes.json (join / refuse / single-tool)
 ```
 
 ## How it works

@@ -8,6 +8,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from deku import hints
 from deku import multi_hop as mh
 from deku import refuse as refuse_mod
 from deku import route_cues as cues
@@ -209,27 +210,6 @@ def select_and_build(question: str) -> Plan | None:
     return validate_plan(propose_steps(question))
 
 
-def _next_hint(status: str, *, failed: list[dict], reason: str | None = None) -> dict:
-    """Machine-oriented hint for a parent agent after a non-ok outcome."""
-    if status == "partial" and failed:
-        return {
-            "action": "retry_failed_clauses",
-            "clauses": [f.get("query") for f in failed if f.get("query")],
-        }
-    if status == "cannot_answer":
-        return {
-            "action": "abstain_or_narrow",
-            "failed_tool": (failed[0].get("tool") if failed else None),
-            "failed_query": (failed[0].get("query") if failed else None),
-        }
-    if status == "refused":
-        return {
-            "action": "ask_in_scope_fact",
-            "reason": reason or "no_plan",
-        }
-    return {"action": "none"}
-
-
 def _run_one(
     tool: str,
     query: str,
@@ -278,7 +258,9 @@ def run(
         out.detail["reason"] = "no_plan"
         out.detail["cores"] = []
         out.detail["locations"] = []
-        out.detail["next_hint"] = _next_hint("refused", failed=[], reason="no_plan")
+        out.detail["next_hint"] = hints.next_hint_for(
+            status="refused", reason="no_plan",
+        )
         return out
     out.detail["plan_id"] = built.plan_id
     out.detail["steps"] = [
@@ -331,8 +313,8 @@ def run(
                     out.detail["failed_steps"] = failed
                     out.detail["cores"] = cores
                     out.detail["locations"] = locations
-                    out.detail["next_hint"] = _next_hint(
-                        "cannot_answer", failed=failed
+                    out.detail["next_hint"] = hints.next_hint_for(
+                        status="cannot_answer", failed=failed,
                     )
                     return out
                 break
@@ -370,16 +352,20 @@ def run(
         if failed:
             out.detail["failed_sub"] = failed[0]["query"]
             out.detail["failed_tool"] = failed[0].get("tool")
-        out.detail["next_hint"] = _next_hint("cannot_answer", failed=failed)
+        out.detail["next_hint"] = hints.next_hint_for(
+            status="cannot_answer", failed=failed,
+        )
         return out
     body = mh.integrate(hops, dependent=dependent and not failed)
     if failed:
         miss = "; ".join(f["query"] for f in failed)
         out.answer = f"{body}\n\n(could not answer: {miss})"
         out.status = "partial"
-        out.detail["next_hint"] = _next_hint("partial", failed=failed)
+        out.detail["next_hint"] = hints.next_hint_for(
+            status="partial", failed=failed,
+        )
     else:
         out.answer = body
         out.status = "ok"
-        out.detail["next_hint"] = {"action": "none"}
+        out.detail["next_hint"] = hints.next_hint_for(status="ok")
     return out

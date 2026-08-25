@@ -55,9 +55,25 @@ Parse JSON stdout:
 | `cores` | bindable cores from hops |
 | `locations` | `[{path, ident?, value?, kind?}, …]` — assignment / definition / prose |
 | `failed_steps` | failed clauses |
-| `next_hint` | e.g. `retry_failed_clauses`, `ask_in_scope_fact` |
+| `next_hint` | machine next step — see actions below |
 
 Treat `refused` / `cannot_answer` as normal outcomes—do not retry as if the CLI crashed.
+
+### `next_hint.action` (branch on these)
+
+| action | Meaning |
+| --- | --- |
+| `none` | done / ok |
+| `ask_in_scope_fact` | refused — rephrase as a short in-scope fact |
+| `provide_path` | clarify — add a file path (or path-scoped git ask) |
+| `provide_url` | missing URL |
+| `retry_failed_clauses` | partial multi-hop — retry `clauses` only |
+| `name_symbol_or_path` | repo ask lacked a clear symbol/path |
+| `narrow_or_rephrase` | weak / off-topic hit — tighter wording |
+| `check_workdir` | no diff / empty working tree |
+| `retry_or_other_url` | fetch failed |
+| `abstain_or_narrow` | cannot answer — do not invent; narrow or stop |
+| `enable_live_or_serve` | offline skip — start serve / drop `--no-live` |
 
 ## Question style
 

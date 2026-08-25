@@ -32,6 +32,10 @@ run = "uv run python -m deku.doctor"
 description = "Live GGUF capability smoke (refuse / web / url / hop / git / dir)"
 run = "uv run python evals/capability_smoke.py"
 
+[tasks.p7-probes]
+description = "Live P7+ composition probes (needs serve + network); writes evals/results/"
+run = "uv run python evals/p7_composition_probes.py"
+
 [tasks.ask]
 description = "deku ask — route + dispatch (pass args after --)"
 run = "uv run deku ask"

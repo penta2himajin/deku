@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from deku import hints
 from deku import normalize as nz
 from deku import refuse as refuse_mod
 from deku import route_cues as cues
@@ -289,28 +290,34 @@ def dispatch(
         url=dec.url,
         detail={**nd, **dict(dec.detail), "audience": aud},
     )
+
+    def finish() -> Routed:
+        # multi_hop already sets a rich hint; keep it when present.
+        if out.tool == "multi_hop" and out.detail.get("next_hint"):
+            return out
+        out.detail["next_hint"] = hints.next_hint_for(
+            status=out.status or "",
+            tool=out.tool,
+            reason=out.detail.get("reason"),
+            abstain_reason=out.detail.get("abstain_reason"),
+            failed=out.detail.get("failed_steps"),
+        )
+        return out
+
     if dec.tool == "refuse":
         reason = dec.detail.get("reason") or refuse_mod.classify(q)
         out.status = "refused"
         out.answer = refuse_mod.message(reason, audience=aud)
         out.detail["reason"] = reason
         out.detail["cores"] = []
-        out.detail["next_hint"] = {
-            "action": "ask_in_scope_fact",
-            "reason": reason,
-        }
-        return out
+        return finish()
     if dec.tool == "clarify":
         from deku import clarify as cl
         reason = dec.detail.get("reason") or cl.detect(q) or "path"
         out.status = "clarify"
         out.answer = cl.question_for(q)
         out.detail["reason"] = reason
-        out.detail["next_hint"] = {
-            "action": "provide_path",
-            "reason": reason,
-        }
-        return out
+        return finish()
     if dec.tool == "url_read":
         got = ur.run(
             q,
@@ -326,13 +333,13 @@ def dispatch(
         out.detail.update(got.detail)
         if SUMMARIZE_CUES.search(q or ""):
             out.detail["mode"] = got.detail.get("mode", "summarize")
-        return out
+        return finish()
     if dec.tool == "multi_hop":
         from deku import orchestrate as orch
         if not live_answer:
             out.status = "skipped_offline"
             out.detail["note"] = "multi_hop needs live_answer"
-            return out
+            return finish()
         got = orch.run(q, seed=seed, root=root)
         out.status = got.status
         out.answer = got.answer
@@ -345,14 +352,12 @@ def dispatch(
             )
         if "cores" not in out.detail:
             out.detail["cores"] = []
-        if "next_hint" not in out.detail:
-            out.detail["next_hint"] = {"action": "none"}
-        return out
+        return finish()
     if dec.tool == "web_search":
         if not live_answer:
             out.status = "skipped_offline"
             out.detail["note"] = "web_search needs live_answer"
-            return out
+            return finish()
         got = ws.run(
             q,
             router="rule",
@@ -365,7 +370,7 @@ def dispatch(
         out.document = got.document
         out.hits = got.hits
         out.detail.update(got.detail)
-        return out
+        return finish()
     if dec.tool == "dir_search":
         from deku import dir_search as ds
         got = ds.run(q, root=root, seed=seed)
@@ -375,7 +380,7 @@ def dispatch(
         out.document = got.document
         out.hits = got.hits
         out.detail.update(got.detail)
-        return out
+        return finish()
     if dec.tool == "git_search":
         from deku import git_search as gits
         got = gits.run(
@@ -387,7 +392,7 @@ def dispatch(
         out.document = got.document
         out.hits = got.hits
         out.detail.update(got.detail)
-        return out
+        return finish()
     if dec.tool == "diff_search":
         from deku import diff_search as diffs
         got = diffs.run(
@@ -399,16 +404,12 @@ def dispatch(
         out.document = got.document
         out.hits = got.hits
         out.detail.update(got.detail)
-        return out
+        return finish()
     out.status = "refused"
     out.answer = refuse_mod.message("out_of_scope", audience=aud)
     out.detail["reason"] = "out_of_scope"
     out.detail["cores"] = []
-    out.detail["next_hint"] = {
-        "action": "ask_in_scope_fact",
-        "reason": "out_of_scope",
-    }
-    return out
+    return finish()
 
 
 def envelope(got: Routed) -> dict:

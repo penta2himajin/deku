@@ -11,7 +11,7 @@ Deterministic (or lightly lexical) machinery:
 - **Route** — pick a tool or `refuse`
 - **Refuse** — fixed English reasons (math, code, chitchat, deep_reasoning, out_of_scope)
 - **Tools** — `web_search`, `dir_search`, `git_search`, `diff_search`, `url_read`
-- **Weak multi-step** — propose clause→tool steps then validate (allow-list, ≤3 steps, bind rules; tools include `url_read`); optional bind of prior hop core; integrate; expose `cores` / `next_hint` for parent agents
+- **Weak multi-step** — propose clause→tool steps then validate (allow-list, ≤3 steps, bind rules; tools include `url_read`); optional bind of prior hop core; integrate; expose `cores` / `next_hint` for parent agents (`deku.hints.next_hint_for` maps status + abstain_reason → action codes)
 - **Audience** — refuse prose for humans, `refused:<reason>` codes for agents (`--audience` / `DEKU_AUDIENCE`)
 - **Typed slots** — closed labels (`date|place|person|number|org|role`); rule extractors pull a grounded core from the document when registered templates miss; source-sentence / thin typed reply as fallback
 - **Optional Needle** — tool routing and (separately) slot-label suggestion only; never free-form answers or plans. Product smokes measure the rule path without Needle
