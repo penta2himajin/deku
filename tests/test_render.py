@@ -27,7 +27,7 @@ class TestTemplateReply(unittest.TestCase):
             "Who is the CEO of Apple?", "Tim Cook", doc,
         ))
 
-    def test_compose_prefers_template_over_long_source(self):
+    def test_compose_prefers_grounded_source_over_template(self):
         doc = (
             "William Shakespeare\n"
             "The Tragedy of Romeo and Juliet, often shortened to Romeo and Juliet, "
@@ -41,7 +41,36 @@ class TestTemplateReply(unittest.TestCase):
             doc,
             question="Who wrote Romeo and Juliet?",
         )
-        self.assertEqual(got, "Romeo and Juliet was written by William Shakespeare.")
+        self.assertIsNotNone(got)
+        self.assertIn("William Shakespeare", got)
+        self.assertIn("written", got.lower())
+        # Classless default: source sentence, not closed "was written by" template.
+        self.assertNotEqual(
+            got, "Romeo and Juliet was written by William Shakespeare."
+        )
+
+    def test_legacy_compose_prefers_template(self):
+        import os
+        os.environ["DEKU_CLASSLESS_WEB"] = "0"
+        try:
+            doc = (
+                "William Shakespeare\n"
+                "The Tragedy of Romeo and Juliet, often shortened to Romeo and Juliet, "
+                "is a tragedy written by William Shakespeare about the romance between "
+                "two young Italians from feuding families.\n"
+                "Source: x"
+            )
+            got = ws.compose_reply(
+                "William Shakespeare",
+                "Someone invented this.",
+                doc,
+                question="Who wrote Romeo and Juliet?",
+            )
+            self.assertEqual(
+                got, "Romeo and Juliet was written by William Shakespeare."
+            )
+        finally:
+            os.environ.pop("DEKU_CLASSLESS_WEB", None)
 
 
 class TestSentenceFilter(unittest.TestCase):
