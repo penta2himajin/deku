@@ -52,10 +52,12 @@ Binary acquisition: document installing `llama-server` on PATH; do not vendor la
 
 **In scope:** `route`, `refuse`, `render`, `web_search`, `dir_search`, `git_search`, `diff_search`, `url_read`, `multi_hop`, `hier_summary`, `orchestrate`, small related unit tests.
 
-**Parent-agent contract:** `deku ask --json --audience agent` returns
-`status`, `tool`, `answer`, `reason`, `plan_id`, `cores`, `locations`,
-`failed_steps`, `next_hint` (see `route.envelope`). Human asks get the same
-facts as short English with file paths when known. Locate patterns:
+**Parent-agent contract:** `deku ask --json --audience agent` returns a **slim**
+envelope (`envelope: "slim"`): `status`, `tool`, `answer`, `reason`, `plan_id`,
+`cores`, `locations`, `failed_steps`, `next_hint` (see `route.envelope`). Nested
+`detail` is omitted by default so parents do not paste retrieval internals into
+context. Use `--json-full` or `DEKU_JSON_FULL=1` for the previous full payload.
+Human asks get the same facts as short English with file paths when known. Locate patterns:
 
 - assignment: `PREFILL is set to "ANSWER: " in deku/extract.py.`
 - definition: `find_assignment in deku/dir_search.py: …`

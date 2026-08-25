@@ -412,8 +412,18 @@ def dispatch(
     return finish()
 
 
-def envelope(got: Routed) -> dict:
-    """Stable machine contract for parent agents / ``deku ask --json``."""
+def envelope(got: Routed, *, full: bool | None = None) -> dict:
+    """Stable machine contract for parent agents / ``deku ask --json``.
+
+    Default is **slim** (no nested ``detail``) so parents do not paste retrieval
+    internals into context. Pass ``full=True`` or set ``DEKU_JSON_FULL=1`` for
+    the debug payload (previous default shape).
+    """
+    import os
+
+    if full is None:
+        flag = (os.environ.get("DEKU_JSON_FULL") or "").strip().lower()
+        full = flag in ("1", "true", "yes", "full")
     d = dict(got.detail or {})
     cores = d.get("cores")
     if cores is None:
@@ -425,7 +435,8 @@ def envelope(got: Routed) -> dict:
         if d.get("core") is not None:
             loc["value"] = d.get("core")
         locations = [loc]
-    return {
+    out = {
+        "envelope": "full" if full else "slim",
         "status": got.status,
         "tool": got.tool,
         "answer": got.answer,
@@ -437,5 +448,7 @@ def envelope(got: Routed) -> dict:
         "next_hint": d.get("next_hint") or {"action": "none"},
         "query": got.query,
         "url": got.url,
-        "detail": d,
     }
+    if full:
+        out["detail"] = d
+    return out

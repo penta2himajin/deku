@@ -88,6 +88,8 @@ uv run python -m unittest discover -s tests
 | `DEKU_API_KEY` | Optional bearer | empty |
 | `DEKU_MODEL_DIR` | GGUF cache directory | `~/.cache/deku/models` |
 | `DEKU_HOST` / `DEKU_PORT` | Bind address for `deku-serve` | `127.0.0.1` / `8080` |
+| `DEKU_AUDIENCE` | Default refuse wording (`human` / `agent`) | `human` |
+| `DEKU_JSON_FULL` | If `1`/`true`, `--json` includes nested `detail` | unset (slim) |
 
 | Task | What it does |
 | --- | --- |

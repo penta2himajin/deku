@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import unittest
+from unittest import mock
 
 from deku import orchestrate as orch
 from deku import refuse as refuse_mod
@@ -80,6 +82,29 @@ class TestEnvelope(unittest.TestCase):
             msg=got.detail.get("cores"),
         )
         self.assertEqual(got.detail.get("next_hint", {}).get("action"), "none")
+
+    def test_default_envelope_is_slim(self):
+        got = rt.dispatch("What is 2+2?", audience="agent", live_answer=False)
+        env = rt.envelope(got)
+        self.assertNotIn("detail", env)
+        self.assertEqual(env.get("envelope"), "slim")
+        self.assertEqual(env["status"], "refused")
+        self.assertEqual(env["next_hint"]["action"], "ask_in_scope_fact")
+
+    def test_full_envelope_keeps_detail(self):
+        got = rt.dispatch("What is 2+2?", audience="agent", live_answer=False)
+        env = rt.envelope(got, full=True)
+        self.assertEqual(env.get("envelope"), "full")
+        self.assertIn("detail", env)
+        self.assertIsInstance(env["detail"], dict)
+        self.assertEqual(env["detail"].get("reason"), "math")
+
+    def test_env_json_full(self):
+        got = rt.dispatch("What is 2+2?", audience="agent", live_answer=False)
+        with mock.patch.dict(os.environ, {"DEKU_JSON_FULL": "1"}):
+            env = rt.envelope(got)
+        self.assertIn("detail", env)
+        self.assertEqual(env.get("envelope"), "full")
 
 
 if __name__ == "__main__":

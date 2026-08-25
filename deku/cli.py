@@ -17,6 +17,7 @@ def ask(
     seed: int = 0,
     live: bool = True,
     as_json: bool = False,
+    json_full: bool = False,
     use_needle_slots: bool = False,
     audience: str | None = None,
 ) -> int:
@@ -29,10 +30,10 @@ def ask(
         use_needle_slots=use_needle_slots,
         audience=audience,
     )
-    if as_json:
+    if as_json or json_full:
         print(
             json.dumps(
-                rt.envelope(got),
+                rt.envelope(got, full=True if json_full else None),
                 ensure_ascii=False,
                 indent=2,
             )
@@ -82,7 +83,18 @@ def main(argv: list[str] | None = None) -> None:
     ask_p.add_argument(
         "--json",
         action="store_true",
-        help="Print stable envelope JSON (status/tool/cores/next_hint/…)",
+        help=(
+            "Print slim envelope JSON (status/tool/answer/cores/locations/"
+            "next_hint/…; no nested detail)"
+        ),
+    )
+    ask_p.add_argument(
+        "--json-full",
+        action="store_true",
+        help=(
+            "Print full envelope JSON including nested detail "
+            "(also settable via DEKU_JSON_FULL=1)"
+        ),
     )
     ask_p.add_argument(
         "--audience",
@@ -104,6 +116,7 @@ def main(argv: list[str] | None = None) -> None:
                 seed=args.seed,
                 live=not args.no_live,
                 as_json=args.json,
+                json_full=args.json_full,
                 use_needle_slots=args.needle_slots,
                 audience=args.audience,
             )

@@ -33,6 +33,13 @@ From the deku repo root (mise + synced `.venv`):
 mise exec -- uv run deku ask --json --audience agent --root . "QUESTION"
 ```
 
+`--json` is **slim** by default (no nested `detail`). For harness debug only:
+
+```bash
+mise exec -- uv run deku ask --json-full --audience agent --root . "QUESTION"
+# or: DEKU_JSON_FULL=1 … --json …
+```
+
 Offline lexical refuse only:
 
 ```bash
@@ -43,10 +50,12 @@ Needs `mise run serve` (or equivalent) for live MiniCPM answers on retrieval pat
 
 ## Envelope (trust these fields)
 
-Parse JSON stdout:
+Parse JSON stdout. Prefer slim (`envelope: "slim"`). Do **not** paste raw JSON
+wholesale into the next turn — lift only the carry set below.
 
 | Field | Use |
 | --- | --- |
+| `envelope` | `slim` (default) or `full` |
 | `status` | `ok` / `partial` / `refused` / `cannot_answer` / `clarify` |
 | `tool` | tool or `multi_hop` / `refuse` |
 | `answer` | short text (includes path when known), or `refused:<reason>` |
@@ -56,8 +65,21 @@ Parse JSON stdout:
 | `locations` | `[{path, ident?, value?, kind?}, …]` — assignment / definition / prose |
 | `failed_steps` | failed clauses |
 | `next_hint` | machine next step — see actions below |
+| `detail` | **only with `--json-full`** — retrieval internals; do not carry forward |
 
 Treat `refused` / `cannot_answer` as normal outcomes—do not retry as if the CLI crashed.
+
+### Carry forward (keep context small)
+
+Into the next parent turn, keep at most:
+
+- `status`
+- `answer` (one short line; skip if `locations` / `cores` already hold the fact)
+- `locations` and/or `cores`
+- `next_hint.action` (plus `clauses` / `reason` / `abstain_reason` when present)
+
+On `ok`, prefer `locations` or `cores` over re-quoting a long `answer`.
+Never retain `detail`, hit snippets, or full stdout dumps.
 
 ### `next_hint.action` (branch on these)
 
