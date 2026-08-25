@@ -75,8 +75,14 @@ def rule_query(question: str) -> str:
     return ws.rule_query(question)
 
 
-def question_identifiers(question: str) -> list[str]:
-    """ALLCAPS / snake_case tokens the hit must preferably contain."""
+def question_identifiers(question: str, *, root: str | Path = ".") -> list[str]:
+    """ALLCAPS / snake_case tokens preferred in hits.
+
+    Lowercase mentions of repo-discovered config names are lifted to the
+    canonical assignment spelling used in source.
+    """
+    from deku import route_cues as cues
+
     q = question or ""
     found = re.findall(r"\b[A-Z][A-Z0-9_]{2,}\b", q)
     found += re.findall(r"\b[a-z_][a-z0-9_]{3,}\b", q)
@@ -87,12 +93,24 @@ def question_identifiers(question: str) -> list[str]:
         "defined", "described", "written", "documented", "located", "found",
         "says", "say", "readme",
     }
+    known = {
+        n.casefold(): n
+        for n in (
+            cues.discover_bare_config_idents(str(root))
+            | cues.discover_snake_config_idents(str(root))
+        )
+    }
     out = []
     seen = set()
     for t in found:
         low = t.casefold()
         if low in stop or low in seen:
             continue
+        if low in known:
+            t = known[low]
+            low = t.casefold()
+            if low in seen:
+                continue
         seen.add(low)
         out.append(t)
     return out
@@ -147,7 +165,7 @@ def doc_allcaps_names(root: str | Path = ".") -> frozenset[str]:
 
 def corpus_mode(question: str, *, root: str | Path = ".") -> str:
     """code = ALLCAPS(len≥4) / snake_case idents; prose = overview without them."""
-    idents = question_identifiers(question)
+    idents = question_identifiers(question, root=root)
     docs = {d.casefold() for d in doc_allcaps_names(root)}
     codeish = [
         i for i in idents
@@ -173,6 +191,67 @@ def corpus_mode(question: str, *, root: str | Path = ".") -> str:
     return "code" if codeish else "prose"
 
 
+def _prose_body_sentences(document: str) -> list[str]:
+    """Merge soft-wrapped README lines, then split into sentences."""
+    paras: list[str] = []
+    buf: list[str] = []
+
+    def flush() -> None:
+        nonlocal buf
+        if buf:
+            paras.append(" ".join(buf))
+            buf = []
+
+    for line in (document or "").splitlines():
+        s = line.strip()
+        if not s or s.lower().startswith("source:") or s.startswith("#"):
+            flush()
+            continue
+        if re.match(r"^[\w./-]+\.(md|py|txt|toml|rst)\s*$", s, re.I):
+            flush()
+            continue
+        if s.startswith("```") or s.startswith("|"):
+            flush()
+            continue
+        if s.lstrip().startswith(">"):
+            flush()
+            continue
+        plain = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", s)
+        plain = re.sub(r"[*`]", "", plain).strip()
+        if not plain:
+            flush()
+            continue
+        if re.match(r"^\S+\s+#\s+\S", plain):
+            flush()
+            # Keep path-map lines as their own short "sentences" for server asks.
+            if len(plain.split()) >= 4:
+                paras.append(plain)
+            continue
+        if re.search(
+            r"(?i)^\s*(-[A-Za-z]\b|curl\b|brew\b|mise\b|uv\s+run)",
+            plain,
+        ):
+            flush()
+            continue
+        if plain.count('"') >= 3 and re.search(r"[{}\[\]]", plain):
+            flush()
+            continue
+        buf.append(plain)
+        if re.search(r'[.!?]"?\s*$', plain):
+            flush()
+    flush()
+
+    out: list[str] = []
+    for para in paras:
+        path_map = bool(re.match(r"^\S+\s+#\s+\S", para))
+        min_words = 4 if path_map else 6
+        for sent in re.split(r"(?<=[.!?])\s+", para):
+            sent = sent.strip()
+            if len(sent.split()) >= min_words:
+                out.append(sent)
+    return out
+
+
 def prose_lead_sentence(document: str, question: str | None = None) -> str | None:
     """Best substantial sentence from a README/docs pack (question-aware)."""
     overview_q = bool(
@@ -189,27 +268,16 @@ def prose_lead_sentence(document: str, question: str | None = None) -> str | Non
         question and re.search(r"(?i)\b(server|wrapper)\b", question)
     )
     candidates = []
-    for line in (document or "").splitlines():
-        s = line.strip()
-        if not s or s.lower().startswith("source:") or s.startswith("#"):
-            continue
-        if s.startswith("```") or s.startswith("|"):
-            continue
-        plain = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", s)
-        plain = re.sub(r"[*`]", "", plain)
-        path_map = bool(re.match(r"^\S+\s+#\s+\S", plain))
-        min_words = 4 if path_map else 6
-        if len(plain.split()) < min_words:
-            continue
-        sent = re.split(r"(?<=[.!?])\s+", plain, maxsplit=1)[0].strip()
-        if len(sent.split()) < min_words:
-            continue
+    for cand_i, sent in enumerate(_prose_body_sentences(document)):
+        path_map = bool(re.match(r"^\S+\s+#\s+\S", sent))
         score = float(extract.term_score(question or "", sent)) if question else 0.0
-        # Structural nudges only — no product/model brand names.
         if path_map:
             score -= 2.0
         if overview_q and path_map:
             score -= 4.0
+        score += max(0.0, 4.0 - cand_i * 0.2)
+        if sent.lstrip().startswith(("-", "*", "•")):
+            score -= 1.5
         if models_q:
             if re.search(
                 r"(?i)\b(models?|llms?|language model|\d+[Bb]\b|GGUF|4-bit|quant)\b",
@@ -218,15 +286,20 @@ def prose_lead_sentence(document: str, question: str | None = None) -> str | Non
                 score += 4.0
             if path_map:
                 score -= 6.0
-        if server_q and (
-            path_map or re.search(r"(?i)\b(server|wrapper|bin/)\b", sent)
-        ):
-            score += 3.0
-        candidates.append((score, len(sent), sent))
+            if re.search(
+                r"(?i)\b(not supported|unsupported|loops?|limitations?)\b", sent
+            ):
+                score -= 5.0
+        if server_q:
+            if re.search(r"(?i)\b(server|wrapper|bin/)\b", sent):
+                score += 5.0
+            elif path_map:
+                score -= 2.0
+        candidates.append((score, -cand_i, len(sent), sent))
     if not candidates:
         return None
-    candidates.sort(key=lambda x: (-x[0], -x[1]))
-    return candidates[0][2]
+    candidates.sort(key=lambda x: (-x[0], -x[1], -x[2]))
+    return candidates[0][3]
 
 
 def looks_where_ident(question: str) -> bool:
@@ -288,10 +361,10 @@ def path_near_line(document: str, assign_line: str) -> str | None:
 
 
 def find_assignment(
-    question: str, document: str
+    question: str, document: str, *, root: str | Path = "."
 ) -> tuple[str | None, str | None, str | None]:
     """If notes contain `IDENT = value`, return (line, value, path)."""
-    for ident in question_identifiers(question):
+    for ident in question_identifiers(question, root=root):
         m = re.search(
             rf"(?m)^\s*{re.escape(ident)}\s*=\s*(.+)$", document or ""
         )
@@ -306,9 +379,11 @@ def find_assignment(
     return None, None, None
 
 
-def find_definition(question: str, document: str) -> str | None:
+def find_definition(
+    question: str, document: str, *, root: str | Path = "."
+) -> str | None:
     """First `def ident(...):` line for a snake_case identifier in the question."""
-    for ident in question_identifiers(question):
+    for ident in question_identifiers(question, root=root):
         if not re.match(r"^[a-z_]", ident):
             continue
         m = re.search(
@@ -473,7 +548,7 @@ def rank_chunks_scored(
     *,
     root: str | Path = ".",
 ) -> list[tuple[float, dict]]:
-    idents = question_identifiers(question)
+    idents = question_identifiers(question, root=root)
     mode = corpus_mode(question, root=root)
     prose = set(prose_paths(root))
     scored = []
@@ -673,7 +748,7 @@ def run(
         return out
     top_score, top = scored[0]
     out.detail["top_score"] = top_score
-    idents = question_identifiers(question)
+    idents = question_identifiers(question, root=root)
     top_text = f"{top.get('path', '')} {top.get('snippet', '')}"
     overview_q = looks_overview_question(question)
     where_q = looks_where_ident(question)
@@ -709,7 +784,9 @@ def run(
         if lead:
             out.detail["prose_lead_candidate"] = lead
 
-    assign_line, assign_val, assign_path = find_assignment(question, doc_top)
+    assign_line, assign_val, assign_path = find_assignment(
+        question, doc_top, root=root
+    )
     if assign_line:
         ident = assign_line.split("=", 1)[0].strip()
         path = assign_path or (top.get("path") or "").split("#")[0].strip() or None
@@ -730,7 +807,7 @@ def run(
             "ok",
         )
         return out
-    defn = find_definition(question, doc_top)
+    defn = find_definition(question, doc_top, root=root)
     if defn:
         path = (
             path_near_line(doc_top, defn)

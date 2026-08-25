@@ -194,6 +194,19 @@ class TestProseLead(unittest.TestCase):
         self.assertIsNotNone(lead)
         self.assertIn("harness", lead.lower())
 
+    def test_lead_skips_curl_json_payload(self):
+        doc = (
+            "README.md\n"
+            "A small local task harness for short grounded facts.\n"
+            "\n"
+            "-d '{\"model\":\"Widget-1B\",\"messages\":[{\"role\":\"user\",\"content\":\"Say hi\"}]}'\n"
+            "Source: file:README.md\n"
+        )
+        lead = ds.prose_lead_sentence(doc, "What is this project about?")
+        self.assertIsNotNone(lead)
+        self.assertIn("harness", lead.lower())
+        self.assertNotIn("-d", lead)
+
     def test_lead_prefers_question_overlap(self):
         doc = (
             "README.md\n"
