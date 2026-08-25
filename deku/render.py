@@ -25,19 +25,57 @@ def assignment(
     return f"{ident} is set to {v}."
 
 
-def definition(sig: str, gloss: str | None = None) -> str:
-    """`def foo(...):` plus optional first docstring sentence."""
+def definition(
+    sig: str,
+    gloss: str | None = None,
+    *,
+    path: str | None = None,
+    where: bool = False,
+) -> str:
+    """`def foo(...):` plus optional first docstring sentence and file path."""
     name = ""
     m = re.match(r"def\s+(\w+)\s*\(", sig or "")
     if m:
         name = m.group(1)
+    p = (path or "").strip()
     if gloss and name:
         g = gloss.strip().rstrip(".")
-        # Drop leading "True if" duplication noise lightly.
+        if p and where:
+            return f"{name} is defined in {p}: {g}."
+        if p:
+            return f"{name} in {p}: {g}."
         return f"{name}: {g}."
+    if name and p and where:
+        return f"{name} is defined in {p}."
+    if name and p:
+        return f"{name} is defined as: {(sig or '').strip()} in {p}."
     if name:
         return f"{name} is defined as: {(sig or '').strip()}"
     return (sig or "").strip()
+
+
+def prose_cite(
+    lead: str,
+    path: str | None = None,
+    *,
+    where: bool = False,
+) -> str:
+    """Attach a doc path to a prose lead without inventing content."""
+    text = (lead or "").strip()
+    p = (path or "").strip()
+    if not text:
+        return text
+    if not p:
+        return text
+    if p.casefold() in text.casefold():
+        return text
+    if where:
+        body = text if text.endswith((".", "!", "?")) else f"{text}."
+        # Avoid double period if we already ended.
+        body = body.rstrip(".")
+        return f"{p} says: {body}."
+    body = text.rstrip(".")
+    return f"{body} (see {p})."
 
 
 def git_message(subject: str) -> str:

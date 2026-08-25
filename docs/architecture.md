@@ -55,8 +55,14 @@ Binary acquisition: document installing `llama-server` on PATH; do not vendor la
 **Parent-agent contract:** `deku ask --json --audience agent` returns
 `status`, `tool`, `answer`, `reason`, `plan_id`, `cores`, `locations`,
 `failed_steps`, `next_hint` (see `route.envelope`). Human asks get the same
-facts as short English with file paths when known
-(e.g. `PREFILL is set to "ANSWER: " in deku/extract.py.`).
+facts as short English with file paths when known. Locate patterns:
+
+- assignment: `PREFILL is set to "ANSWER: " in deku/extract.py.`
+- definition: `find_assignment in deku/dir_search.py: …`
+- prose / overview: lead sentence plus `(see README.md)` or `README.md says: …`
+
+`locations` entries may include `kind` (`definition` / `prose`) plus
+`path` / `ident` / `value` as available.
 
 **Out of scope for deku:** `swebench*`, large coding-agent A/B farms, research training loops, ranking experiments, a separate MCP extract server (keep extract helpers in-process only).
 

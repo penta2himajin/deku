@@ -37,6 +37,8 @@ ROUTE_CASES: list[tuple[str, str, str]] = [
     ),
     ("What is the PREFILL string?", "dir_search", "hard"),
     ("Where is PREFILL set?", "dir_search", "hard"),
+    ("Where is find_assignment defined?", "dir_search", "hard"),
+    ("Where is this project described?", "dir_search", "soft"),
     ("What is MAX_TOKENS?", "dir_search", "hard"),
     (
         "What is the PREFILL string and what is MAX_TOKENS?",

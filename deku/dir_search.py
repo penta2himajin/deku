@@ -68,6 +68,8 @@ def question_identifiers(question: str) -> list[str]:
         "what", "when", "where", "which", "does", "this", "that", "with",
         "from", "into", "about", "string", "value", "file", "code", "detect",
         "project", "purpose", "overview", "default", "harness",
+        "defined", "described", "written", "documented", "located", "found",
+        "says", "say", "readme",
     }
     out = []
     seen = set()
@@ -158,13 +160,29 @@ def prose_lead_sentence(document: str, question: str | None = None) -> str | Non
 
 
 def looks_where_ident(question: str) -> bool:
-    """True when the ask is primarily about where a constant/symbol lives."""
+    """True when the ask is primarily about where a symbol or doc lives."""
     return bool(
         re.search(
             r"(?i)\b("
             r"where (?:is|are)|where (?:can I find|do I find)|"
-            r"in which file|which file|defined in|set in"
+            r"in which file|which file|defined in|set in|"
+            r"where (?:is|are).{0,40}\bdescribed|"
+            r"described (?:in|where)|where (?:does|do) (?:the )?readme\b"
             r")\b",
+            question or "",
+        )
+    )
+
+
+def looks_overview_question(question: str) -> bool:
+    """README / purpose / project overview (including where-described)."""
+    return bool(
+        re.search(
+            r"(?i)\b(about|purpose|overview|readme|this project|"
+            r"what (?:is|does) (?:this|deku|the readme)|"
+            r"where (?:is|are) (?:this |the )?project|"
+            r"where (?:is|are).{0,40}\bdescribed|"
+            r"project described)\b",
             question or "",
         )
     )
@@ -247,13 +265,19 @@ def find_relevant_definition(question: str, document: str) -> str | None:
     return None
 
 
-def definition_reply(document: str, def_line: str) -> str:
+def definition_reply(
+    document: str,
+    def_line: str,
+    *,
+    path: str | None = None,
+    where: bool = False,
+) -> str:
     """Natural-language gloss from signature + docstring / comment."""
     lines = (document or "").splitlines()
     try:
         i = next(n for n, ln in enumerate(lines) if ln.strip() == def_line.strip())
     except StopIteration:
-        return render.definition(def_line)
+        return render.definition(def_line, path=path, where=where)
     gloss = None
     for ln in lines[i + 1: i + 10]:
         s = ln.strip()
@@ -279,7 +303,7 @@ def definition_reply(document: str, def_line: str) -> str:
             break
         if s.startswith("def ") or s.startswith("class "):
             break
-    return render.definition(def_line, gloss)
+    return render.definition(def_line, gloss, path=path, where=where)
 
 
 def core_ok_for_dir(question: str, core: str | None, document: str = "") -> bool:
@@ -555,8 +579,16 @@ def run(
     out.detail["top_score"] = top_score
     idents = question_identifiers(question)
     top_text = f"{top.get('path', '')} {top.get('snippet', '')}"
-    if idents and not any(
-        i in top_text or i.casefold() in top_text.casefold() for i in idents
+    overview_q = looks_overview_question(question)
+    where_q = looks_where_ident(question)
+    # Overview / where-doc asks often lack code idents; do not abstain for that.
+    if (
+        idents
+        and not overview_q
+        and not (mode == "prose" and where_q)
+        and not any(
+            i in top_text or i.casefold() in top_text.casefold() for i in idents
+        )
     ):
         out.answer, out.status = ws.CANNOT_ANSWER, "cannot_answer"
         out.detail["abstain_reason"] = "identifiers_missing_from_top_hit"
@@ -604,9 +636,27 @@ def run(
         return out
     defn = find_definition(question, doc_top)
     if defn:
+        path = (
+            path_near_line(doc_top, defn)
+            or (top.get("path") or "").split("#")[0].strip()
+            or None
+        )
+        m_name = re.match(r"def\s+(\w+)\s*\(", defn)
+        ident = m_name.group(1) if m_name else None
         out.detail["core"] = defn
         out.detail["reply_source"] = "definition"
-        out.answer, out.status = definition_reply(doc_top, defn), "ok"
+        if path:
+            out.detail["path"] = path
+            loc = {"path": path, "kind": "definition"}
+            if ident:
+                loc["ident"] = ident
+            out.detail["locations"] = [loc]
+        out.answer, out.status = (
+            definition_reply(
+                doc_top, defn, path=path, where=looks_where_ident(question),
+            ),
+            "ok",
+        )
         return out
 
     # Prose / overview: prefer a grounded lead sentence over weak MiniCPM
@@ -615,18 +665,27 @@ def run(
     out.document = doc
     if mode == "prose":
         lead = prose_lead_sentence(doc, question) or out.detail.get("prose_lead_candidate")
-        overview = bool(
-            re.search(
-                r"(?i)\b(about|purpose|overview|readme|this project|"
-                r"what (?:is|does) (?:this|deku|the readme))\b",
-                question or "",
-            )
+        overview = overview_q or looks_overview_question(question)
+        prose_path = (
+            out.detail.get("prose_full_file")
+            or (top.get("path") or "").split("#")[0].strip()
+            or None
         )
         if overview and lead:
             out.detail["core"] = lead
             out.detail["reply_source"] = "prose_lead"
             out.detail["summary_skipped"] = "overview_prefers_lead"
-            out.answer, out.status = lead, "ok"
+            if prose_path:
+                out.detail["path"] = prose_path
+                out.detail["locations"] = [
+                    {"path": prose_path, "kind": "prose"},
+                ]
+            out.answer, out.status = (
+                render.prose_cite(
+                    lead, prose_path, where=looks_where_ident(question),
+                ),
+                "ok",
+            )
             return out
         summary = ws.minicpm_summarize(question, doc, seed=seed)
         out.detail["summary"] = summary
@@ -655,14 +714,36 @@ def run(
         if use_summary:
             out.detail["core"] = summary
             out.detail["reply_source"] = "summary"
-            out.answer, out.status = summary.strip(), "ok"
+            if prose_path:
+                out.detail["path"] = prose_path
+                out.detail["locations"] = [
+                    {"path": prose_path, "kind": "prose"},
+                ]
+            out.answer, out.status = (
+                render.prose_cite(
+                    summary.strip(),
+                    prose_path,
+                    where=looks_where_ident(question),
+                ),
+                "ok",
+            )
             return out
         if summary and not out.detail.get("summary_rejected"):
             out.detail["summary_rejected"] = "ungrounded_or_off_topic"
         if lead:
             out.detail["core"] = lead
             out.detail["reply_source"] = "prose_lead"
-            out.answer, out.status = lead, "ok"
+            if prose_path:
+                out.detail["path"] = prose_path
+                out.detail["locations"] = [
+                    {"path": prose_path, "kind": "prose"},
+                ]
+            out.answer, out.status = (
+                render.prose_cite(
+                    lead, prose_path, where=looks_where_ident(question),
+                ),
+                "ok",
+            )
             return out
         out.answer, out.status = ws.CANNOT_ANSWER, "cannot_answer"
         out.detail["abstain_reason"] = "no_prose_lead"

@@ -53,7 +53,7 @@ Parse JSON stdout:
 | `reason` | refuse reason code |
 | `plan_id` | multi-hop plan label |
 | `cores` | bindable cores from hops |
-| `locations` | `[{path, ident?, value?}, …]` for repo facts |
+| `locations` | `[{path, ident?, value?, kind?}, …]` — assignment / definition / prose |
 | `failed_steps` | failed clauses |
 | `next_hint` | e.g. `retry_failed_clauses`, `ask_in_scope_fact` |
 
@@ -62,3 +62,6 @@ Treat `refused` / `cannot_answer` as normal outcomes—do not retry as if the CL
 ## Question style
 
 One job per call; English factual phrasing; ≤3 joined clauses.
+
+Good locate asks: `Where is PREFILL set?`, `Where is find_assignment defined?`,
+`What is this project about?`, `Where is this project described?`

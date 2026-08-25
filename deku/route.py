@@ -133,6 +133,15 @@ def hard_route(question: str) -> Decision | None:
             query=ws.rule_query(q),
             detail={"cue": "dir_ident"},
         )
+    # snake_case symbols (find_assignment) — local code, not web "where is".
+    if re.search(r"\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b", q) and re.search(
+        r"(?i)\b(where (?:is|are)|defined|definition|what does)\b", q
+    ):
+        return Decision(
+            tool="dir_search",
+            query=ws.rule_query(q),
+            detail={"cue": "dir_snake"},
+        )
     return None
 
 
