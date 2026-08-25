@@ -49,10 +49,11 @@ Parse JSON stdout:
 | --- | --- |
 | `status` | `ok` / `partial` / `refused` / `cannot_answer` / `clarify` |
 | `tool` | tool or `multi_hop` / `refuse` |
-| `answer` | short text, or `refused:<reason>` when audience=agent |
+| `answer` | short text (includes path when known), or `refused:<reason>` |
 | `reason` | refuse reason code |
 | `plan_id` | multi-hop plan label |
 | `cores` | bindable cores from hops |
+| `locations` | `[{path, ident?, value?}, …]` for repo facts |
 | `failed_steps` | failed clauses |
 | `next_hint` | e.g. `retry_failed_clauses`, `ask_in_scope_fact` |
 

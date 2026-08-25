@@ -409,6 +409,12 @@ def envelope(got: Routed) -> dict:
     if cores is None:
         core = d.get("core")
         cores = [core] if core else []
+    locations = d.get("locations")
+    if locations is None and d.get("path"):
+        loc = {"path": d.get("path")}
+        if d.get("core") is not None:
+            loc["value"] = d.get("core")
+        locations = [loc]
     return {
         "status": got.status,
         "tool": got.tool,
@@ -416,6 +422,7 @@ def envelope(got: Routed) -> dict:
         "reason": d.get("reason"),
         "plan_id": d.get("plan_id"),
         "cores": cores,
+        "locations": locations or [],
         "failed_steps": d.get("failed_steps"),
         "next_hint": d.get("next_hint") or {"action": "none"},
         "query": got.query,

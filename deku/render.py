@@ -8,8 +8,20 @@ from __future__ import annotations
 import re
 
 
-def assignment(ident: str, value: str) -> str:
+def assignment(
+    ident: str,
+    value: str,
+    *,
+    path: str | None = None,
+    where: bool = False,
+) -> str:
+    """Short grounded assignment reply; optionally name the defining file."""
     v = (value or "").strip()
+    p = (path or "").strip()
+    if p and where:
+        return f"{ident} is defined in {p} as {v}."
+    if p:
+        return f"{ident} is set to {v} in {p}."
     return f"{ident} is set to {v}."
 
 

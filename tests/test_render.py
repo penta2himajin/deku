@@ -64,6 +64,10 @@ class TestRender(unittest.TestCase):
             rd.assignment("PREFILL", '"ANSWER: "'),
             'PREFILL is set to "ANSWER: ".',
         )
+        self.assertEqual(
+            rd.assignment("PREFILL", '"ANSWER: "', path="deku/extract.py"),
+            'PREFILL is set to "ANSWER: " in deku/extract.py.',
+        )
 
     def test_git_message(self):
         self.assertEqual(

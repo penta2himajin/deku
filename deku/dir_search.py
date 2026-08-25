@@ -157,8 +157,51 @@ def prose_lead_sentence(document: str, question: str | None = None) -> str | Non
     return candidates[0][2]
 
 
-def find_assignment(question: str, document: str) -> tuple[str | None, str | None]:
-    """If the notes contain `IDENT = value` for a question identifier, return it."""
+def looks_where_ident(question: str) -> bool:
+    """True when the ask is primarily about where a constant/symbol lives."""
+    return bool(
+        re.search(
+            r"(?i)\b("
+            r"where (?:is|are)|where (?:can I find|do I find)|"
+            r"in which file|which file|defined in|set in"
+            r")\b",
+            question or "",
+        )
+    )
+
+
+def path_near_line(document: str, assign_line: str) -> str | None:
+    """Best file path header / Source: line above an assignment in packed notes."""
+    lines = (document or "").splitlines()
+    needle = (assign_line or "").strip()
+    ident = needle.split("=", 1)[0].strip() if "=" in needle else needle
+    hit_i = None
+    for i, ln in enumerate(lines):
+        if ident and re.search(rf"(?m)^\s*{re.escape(ident)}\s*=", ln):
+            hit_i = i
+            break
+        if needle and ln.strip() == needle:
+            hit_i = i
+            break
+    if hit_i is None:
+        return None
+    for j in range(hit_i, -1, -1):
+        m = re.match(r"(?i)^Source:\s*file:(\S+)", lines[j].strip())
+        if m:
+            return m.group(1).split("#")[0].strip()
+        m = re.match(
+            r"^((?:[\w.-]+/)*[\w.-]+\.(?:py|md|json|txt|toml|sh|ya?ml|csv))\s*$",
+            lines[j].strip(),
+        )
+        if m:
+            return m.group(1)
+    return None
+
+
+def find_assignment(
+    question: str, document: str
+) -> tuple[str | None, str | None, str | None]:
+    """If notes contain `IDENT = value`, return (line, value, path)."""
     for ident in question_identifiers(question):
         m = re.search(
             rf"(?m)^\s*{re.escape(ident)}\s*=\s*(.+)$", document or ""
@@ -168,8 +211,10 @@ def find_assignment(question: str, document: str) -> tuple[str | None, str | Non
         raw = m.group(1).split("#")[0].strip().rstrip(",")
         if not raw:
             continue
-        return f"{ident} = {raw}", raw
-    return None, None
+        line = f"{ident} = {raw}"
+        path = path_near_line(document, line)
+        return line, raw, path
+    return None, None, None
 
 
 def find_definition(question: str, document: str) -> str | None:
@@ -536,12 +581,26 @@ def run(
         if lead:
             out.detail["prose_lead_candidate"] = lead
 
-    assign_line, assign_val = find_assignment(question, doc_top)
+    assign_line, assign_val, assign_path = find_assignment(question, doc_top)
     if assign_line:
         ident = assign_line.split("=", 1)[0].strip()
+        path = assign_path or (top.get("path") or "").split("#")[0].strip() or None
         out.detail["core"] = assign_val
         out.detail["reply_source"] = "assignment"
-        out.answer, out.status = render.assignment(ident, assign_val), "ok"
+        if path:
+            out.detail["path"] = path
+            out.detail["locations"] = [
+                {"path": path, "ident": ident, "value": assign_val},
+            ]
+        out.answer, out.status = (
+            render.assignment(
+                ident,
+                assign_val,
+                path=path,
+                where=looks_where_ident(question),
+            ),
+            "ok",
+        )
         return out
     defn = find_definition(question, doc_top)
     if defn:

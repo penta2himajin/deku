@@ -277,6 +277,7 @@ def run(
         )
         out.detail["reason"] = "no_plan"
         out.detail["cores"] = []
+        out.detail["locations"] = []
         out.detail["next_hint"] = _next_hint("refused", failed=[], reason="no_plan")
         return out
     out.detail["plan_id"] = built.plan_id
@@ -286,6 +287,7 @@ def run(
     ]
     hops: list[tuple[str, str]] = []
     cores: list[str] = []
+    locations: list[dict] = []
     docs: list[str] = []
     rewritten: list[str] = []
     failed: list[dict] = []
@@ -328,15 +330,26 @@ def run(
                     out.detail["dependent"] = dependent
                     out.detail["failed_steps"] = failed
                     out.detail["cores"] = cores
+                    out.detail["locations"] = locations
                     out.detail["next_hint"] = _next_hint(
                         "cannot_answer", failed=failed
                     )
                     return out
                 break
             continue
+        hop_detail = getattr(got, "detail", None) or {}
         hop_core = mh.core_from_result(got)
         if hop_core:
             cores.append(hop_core)
+        for loc in hop_detail.get("locations") or []:
+            if isinstance(loc, dict) and loc.get("path"):
+                locations.append(dict(loc))
+        if hop_detail.get("path") and not hop_detail.get("locations"):
+            locations.append({
+                "path": hop_detail["path"],
+                "value": hop_detail.get("core"),
+                "query": q,
+            })
         prior_core = hop_core or prior_core
         prior_query = q
         hops.append((q, got.answer.strip()))
@@ -344,6 +357,7 @@ def run(
     out.detail["dependent"] = dependent
     out.detail["failed_steps"] = failed
     out.detail["cores"] = cores
+    out.detail["locations"] = locations
     out.document = "\n\n".join(d for d in docs if d)
     if not hops:
         out.status = "cannot_answer"

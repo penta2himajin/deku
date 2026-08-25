@@ -138,9 +138,10 @@ class TestIntent(unittest.TestCase):
 class TestAssignment(unittest.TestCase):
     def test_finds_prefill_assignment(self):
         doc = 'extract.py\nPREFILL = "ANSWER: "\nTEMP = 0.2\n'
-        line, val = ds.find_assignment("What is the PREFILL string?", doc)
+        line, val, path = ds.find_assignment("What is the PREFILL string?", doc)
         self.assertEqual(line, 'PREFILL = "ANSWER: "')
         self.assertIn("ANSWER", val)
+        self.assertEqual(path, "extract.py")
 
     def test_definition_reply_includes_docstring(self):
         doc = (

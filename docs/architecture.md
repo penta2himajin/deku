@@ -53,8 +53,10 @@ Binary acquisition: document installing `llama-server` on PATH; do not vendor la
 **In scope:** `route`, `refuse`, `render`, `web_search`, `dir_search`, `git_search`, `diff_search`, `url_read`, `multi_hop`, `hier_summary`, `orchestrate`, small related unit tests.
 
 **Parent-agent contract:** `deku ask --json --audience agent` returns
-`status`, `tool`, `answer`, `reason`, `plan_id`, `cores`, `failed_steps`,
-`next_hint` (see `route.envelope`).
+`status`, `tool`, `answer`, `reason`, `plan_id`, `cores`, `locations`,
+`failed_steps`, `next_hint` (see `route.envelope`). Human asks get the same
+facts as short English with file paths when known
+(e.g. `PREFILL is set to "ANSWER: " in deku/extract.py.`).
 
 **Out of scope for deku:** `swebench*`, large coding-agent A/B farms, research training loops, ranking experiments, a separate MCP extract server (keep extract helpers in-process only).
 
