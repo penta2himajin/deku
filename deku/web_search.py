@@ -103,7 +103,9 @@ def expand_search_queries(question: str, query: str) -> list[str]:
             out.insert(0, "George Orwell")
         out.insert(0, work)
         out.insert(0, f"{work} (novel)")
+        out.insert(0, f"{work} (play)")
         out.append(f"{work} author")
+        out.append(f"{work} writer")
         out.append(f"{work} Orwell")
         out.append(f"{work} Shakespeare")
     m = re.search(r"(?i)\blargest (\w+)", q)
@@ -121,7 +123,12 @@ def expand_search_queries(question: str, query: str) -> list[str]:
         out.insert(0, org)
         if re.fullmatch(r"(?i)tesla", org):
             out.insert(0, "Tesla, Inc.")
+        # Generic company-title shapes (not a closed org→canonical map).
+        if not re.search(r"(?i)\b(inc\.?|corp\.?|ltd\.?|llc)\b", org):
+            out.append(f"{org}, Inc.")
+            out.append(f"{org} Inc.")
         out.append(f"{org} founder")
+        out.append(f"{org} co-founder")
     m = re.search(r"(?i)chemical symbol for (\w+)", q)
     if m:
         elem = m.group(1)
@@ -138,6 +145,7 @@ def expand_search_queries(question: str, query: str) -> list[str]:
         out.insert(0, product)
         out.append(f"{product} manufacturer")
         out.append(f"{product} developed by")
+        out.append(f"{product} (product)")
         if "playstation" in product.casefold():
             out.insert(0, "Sony PlayStation")
     m = re.search(r"(?i)^\s*where (?:was|is) (.+?) born\??\s*$", q)
@@ -183,8 +191,11 @@ def expand_search_queries(question: str, query: str) -> list[str]:
         out.insert(0, org)
         if re.fullmatch(r"(?i)tesla", org):
             out.insert(0, "Tesla, Inc.")
+        if not re.search(r"(?i)\b(inc\.?|corp\.?|ltd\.?|llc)\b", org):
+            out.append(f"{org}, Inc.")
         out.append(f"{org} founded")
         out.append(f"{org} founding")
+        out.append(f"{org} established")
     # Birthday / current office → prefer biography over holiday pages.
     m = re.search(
         r"(?i)(?:birthday|birth date|date of birth)\s+of\s+(?:the\s+)?(.+?)\??\s*$",
@@ -1115,6 +1126,7 @@ def rank_hits_scored(
         text = f"{h.get('title', '')} {h.get('snippet', '')}"
         score = float(extract.term_score(question, text))
         title = h.get("title") or ""
+        score += lexical_relation_boost(question or "", topic, title, text)
         if topic:
             if hit_title_matches_topic(title, topic):
                 score += 6.0
@@ -1124,6 +1136,16 @@ def rank_hits_scored(
                 and topic.casefold() in text.casefold()
             ):
                 # Person page about the asked company — not a topic near-miss.
+                score += 4.0
+            elif (
+                want_maker
+                and topic.casefold() in text.casefold()
+                and re.search(
+                    r"(?i)\b(developed|manufactured|made|created)\s+by\b",
+                    text,
+                )
+            ):
+                # Maker page that attests the product — not a topic near-miss.
                 score += 4.0
             else:
                 # Near-miss titles (Perugia≈Peru, novel≠play) get pushed down.
@@ -2466,6 +2488,7 @@ def question_topic(question: str) -> str | None:
         r"(?i)population of (.+?)\??\s*$",
         r"(?i)who founded (.+?)\??\s*$",
         r"(?i)who wrote (.+?)\??\s*$",
+        r"(?i)what company makes (?:the )?(.+?)\??\s*$",
         r"(?i)(?:ceo|chief executive(?: officer)?|president|prime minister) of (.+?)\??\s*$",
         r"(?i)when (?:was|were) (?:the )?(.+?) founded",
         r"(?i)where (?:is|are) (.+?) (?:headquartered|based)",
@@ -2524,7 +2547,60 @@ def relation_kind(question: str) -> str | None:
         return "born"
     if re.search(r"(?i)\bpublished\b", q):
         return "published"
+    if re.search(r"(?i)\b(what company makes|manufacturer|makes the)\b", q):
+        return "makes"
     return None
+
+
+def lexical_relation_boost(
+    question: str, topic: str | None, title: str, text: str
+) -> float:
+    """Boost hits where topic and relation cues co-occur (no entity name table).
+
+    Intended as the durable rank path; closed entity literals elsewhere may
+    still add extra score until peeled in a later pass.
+    """
+    rel = relation_kind(question)
+    if rel not in ("founded", "wrote", "makes"):
+        return 0.0
+    bonus = 0.0
+    title_ok = bool(topic and hit_title_matches_topic(title, topic))
+    topic_in = bool(topic and topic.casefold() in (text or "").casefold())
+    if rel == "founded":
+        cue = _RELATION_CUES["founded"]
+        if cue.search(text or ""):
+            if title_ok:
+                bonus += 10.0
+            elif topic_in:
+                bonus += 6.0
+            if re.search(r"(?i)\bfounded by\b|\bco-?founded by\b", text or ""):
+                bonus += 4.0
+    elif rel == "wrote":
+        cue = _RELATION_CUES["wrote"]
+        if re.search(r"(?i)\b(restaurant|hamburger)\b", text or ""):
+            bonus -= 8.0
+        elif cue.search(text or ""):
+            if title_ok and not re.search(
+                r"(?i)\((film|movie|song|album|TV series|restaurant)\)",
+                title or "",
+            ):
+                bonus += 10.0
+            elif topic_in:
+                bonus += 6.0
+    elif rel == "makes":
+        if re.search(
+            r"(?i)\b(developed|manufactured|made|created|produced)\s+by\b",
+            text or "",
+        ):
+            bonus += 10.0
+            if topic_in:
+                bonus += 4.0
+        elif title_ok and not re.search(
+            r"(?i)\b(developed|manufactured|made)\s+by\b", text or ""
+        ):
+            # Bare product page without a maker attestation.
+            bonus -= 2.0
+    return bonus
 
 
 def person_attested(core: str, document: str) -> bool:
