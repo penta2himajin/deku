@@ -185,10 +185,16 @@ def generic_hit_score(question: str, hit: dict) -> float:
         m = re.search(pat, question or "")
         if m:
             who = m.group(1).strip().rstrip("?.").rstrip("'s").strip()
+            # Office phrases ("current Emperor of Japan") are not person titles.
+            if office_page_title(question or "") and re.search(
+                r"(?i)\b(current|emperor|president|prime minister|pope)\b", who
+            ):
+                break
             if re.fullmatch(re.escape(who), title, flags=re.I):
                 score += 10.0
             elif who.casefold() not in title.casefold():
                 score -= 8.0
+            break
 
     if re.search(r"(?i)\bwho is\b", question or "") and re.search(
         r"(?i)\b(ceo|chief executive|president|prime minister|pope|emperor)\b",
@@ -264,6 +270,58 @@ def generic_hit_score(question: str, hit: dict) -> float:
             r"(?i)\b(developed|manufactured|made|created)\s+by\b", text
         ):
             score += 6.0
+
+    # When-founded / when-released: prefer the entity page (exact title) over
+    # compound near-misses ("X Foundation…", "X Foundry") and boost year cues.
+    want_when_founded = bool(
+        re.search(r"(?i)\bfounded\b", question or "")
+        and re.search(r"(?i)\bwhen\b", question or "")
+    )
+    want_when_released = bool(
+        re.search(r"(?i)\breleased\b", question or "")
+        and re.search(r"(?i)\bwhen\b", question or "")
+    )
+    if topic and (want_when_founded or want_when_released):
+        bare = re.sub(r"\s*\([^)]*\)\s*", " ", title).strip()
+        if re.fullmatch(re.escape(topic), bare, flags=re.I) or re.fullmatch(
+            rf"{re.escape(topic)}(?:\s*,?\s*Inc\.?)?", bare, flags=re.I
+        ):
+            score += 10.0
+        elif hit_title_matches_topic(title, topic) and not re.fullmatch(
+            re.escape(topic), bare, flags=re.I
+        ):
+            # History of X is useful for release; other compounds are noise.
+            if want_when_released and re.match(
+                rf"(?i)^history of (?:the )?{re.escape(topic)}\b", title
+            ):
+                score += 8.0
+            else:
+                score -= 8.0
+        if want_when_founded and re.search(
+            r"(?i)\b(?:founded|established)\s+(?:in|on)\b.{0,20}\b(?:19|20)\d{2}\b",
+            text,
+        ):
+            score += 5.0
+        if want_when_released and re.search(
+            r"(?i)\b(?:released|unveiled|launched)\b.{0,40}\b(?:19|20)\d{2}\b",
+            text,
+        ):
+            score += 5.0
+
+    # Onomastic / dictionary pages are poor person biographies.
+    if re.search(r"(?i)\((given name|surname|name)\)", title):
+        score -= 12.0
+
+    # Birthday of an office title ("current Emperor of Japan"): do not punish
+    # person / office pages for missing the full office phrase in the title.
+    if re.search(r"(?i)\b(birthday|birth date|date of birth)\b", question or ""):
+        if office_page_title(question or ""):
+            if re.search(r"(?i)\(born\s+\d|\bborn\s+(?:on\s+)?\d", text):
+                score += 8.0
+            if has_person_name(title) and not re.search(
+                r"(?i)\((given name|surname|name)\)", title
+            ):
+                score += 4.0
 
     return score
 
@@ -905,6 +963,10 @@ def enrich_hits_for_answer(
         re.search(r"(?i)\bfounded\b", question or "")
         and re.search(r"(?i)\bwhen\b", question or "")
     )
+    want_released_when = bool(
+        re.search(r"(?i)\breleased\b", question or "")
+        and re.search(r"(?i)\bwhen\b", question or "")
+    )
     want_who_founded = bool(re.search(r"(?i)\bwho founded\b", question or ""))
     want_born_where = bool(
         re.search(r"(?i)\bborn\b", question or "")
@@ -936,6 +998,11 @@ def enrich_hits_for_answer(
         if want_apollo_when and not re.search(r"\b1969\b", snip):
             need = True
         if want_founded_when and not re.search(r"(?i)\bfounded in\s+\d{4}\b", snip):
+            need = True
+        if want_released_when and not re.search(
+            r"(?i)\b(?:released|unveiled|launched)\b.{0,40}\b(?:19|20)\d{2}\b",
+            snip,
+        ):
             need = True
         if want_who_founded and not re.search(
             r"(?i)\bfounded by\b|\bco-?founders?\b", snip
@@ -1034,6 +1101,14 @@ def enrich_hits_for_answer(
                 elif want_founded_when and re.search(
                     r"(?i)\bfounded in\s+\d{4}\b", extract_text
                 ) and not re.search(r"(?i)\bfounded in\s+\d{4}\b", snip):
+                    better = True
+                elif want_released_when and re.search(
+                    r"(?i)\b(?:released|unveiled|launched)\b.{0,40}\b(?:19|20)\d{2}\b",
+                    extract_text,
+                ) and not re.search(
+                    r"(?i)\b(?:released|unveiled|launched)\b.{0,40}\b(?:19|20)\d{2}\b",
+                    snip,
+                ):
                     better = True
                 elif want_who_founded and re.search(
                     r"(?i)\bfounded by\b", extract_text
@@ -1456,6 +1531,8 @@ def fact_core_from_doc(question: str, document: str) -> str | None:
             r"(?i)\breleased\s+in\s+(\d{4})",
             r"(?i)\brelease\s+date[:\s]+(?:.*?)?(\d{4})",
             r"(?i)\bfirst\s+released\s+(?:on\s+)?(?:\w+\s+\d{1,2},?\s+)?(\d{4})",
+            r"(?i)\bunveiled\b.{0,60}\b((?:19|20)\d{2})\b",
+            r"(?i)\blaunched\b.{0,40}\b((?:19|20)\d{2})\b",
             r"(?i)\bfirst\s+published\s+(?:in\s+|on\s+)?(?:\w+\s+\d{1,2},?\s+)?(\d{4})",
             r"(?i)\bpublished\s+(?:in\s+|on\s+)?(?:\w+\s+\d{1,2},?\s+)?(\d{4})",
             r"(?i)\bpublication\s+date[:\s]+(?:.*?)?(\d{4})",
@@ -1928,8 +2005,11 @@ def question_topic(question: str) -> str | None:
         r"(?i)what company makes (?:the )?(.+?)\??\s*$",
         r"(?i)(?:ceo|chief executive(?: officer)?|president|prime minister) of (.+?)\??\s*$",
         r"(?i)when (?:was|were) (?:the )?(.+?) founded",
+        r"(?i)when (?:was|were) (?:the )?(.+?) released",
         r"(?i)where (?:is|are) (.+?) (?:headquartered|based)",
         r"(?i)headquarters of (.+?)\??\s*$",
+        r"(?i)(?:birthday|birth date|date of birth)\s+of\s+(?:the\s+)?(.+?)\??\s*$",
+        r"(?i)what is (.+?)(?:'s)? birthday",
     ):
         m = re.search(pat, q)
         if m:
@@ -2671,6 +2751,8 @@ def run(question: str, *, router: str = "rule", k: int = 4,
             picked = False
             for _sc, h in scored:
                 title_h = (h.get("title") or "").strip()
+                if re.search(r"(?i)\((given name|surname|name)\)", title_h):
+                    continue
                 if re.fullmatch(re.escape(inc_name), title_h, flags=re.I) or (
                     extract.norm(inc_name) in extract.norm(title_h)
                     and has_person_name(title_h)
@@ -2685,12 +2767,38 @@ def run(question: str, *, router: str = "rule", k: int = 4,
                     office_core = office_core_from_hit(question, top, doc) or inc_name
                     picked = True
                     break
+            # Prefer exact person title; fall through to bio fetch if only
+            # onomastic / office pages matched poorly.
+            if picked and re.search(
+                r"(?i)\((given name|surname|name)\)",
+                (top.get("title") or ""),
+            ):
+                picked = False
+            want_bday = bool(
+                re.search(
+                    r"(?i)\b(birthday|birth date|date of birth|how old)\b",
+                    question or "",
+                )
+            )
+            if picked and want_bday and not re.search(
+                r"(?i)\(born\s+\d|\bborn\s+(?:on\s+)?\d", doc
+            ):
+                picked = False
             if not picked:
-                if extract.norm(inc_name) in extract.norm(doc):
+                if (
+                    not want_bday
+                    and extract.norm(inc_name) in extract.norm(doc)
+                ):
                     office_core = inc_name
                 else:
                     # Incumbent known but missing from ranked hits — fetch bio.
-                    bio = wiki_page_summary(inc_name)
+                    bio = wiki_page_summary(inc_name) or ""
+                    if want_bday:
+                        bdate = wiki_birth_date(inc_name)
+                        if bdate:
+                            bio = (
+                                f"{inc_name} (born {bdate}).\n{bio}"
+                            ).strip()
                     if bio and len(bio.split()) >= 8:
                         top = {
                             "title": inc_name,

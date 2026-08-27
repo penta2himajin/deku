@@ -202,6 +202,18 @@ def _extract_date(question: str, doc: str) -> str | None:
                 core = m.group(0).strip()
                 if extract.verify(core.split()[0], doc):
                     return core
+    # Event years: founded / released / unveiled (generic, not entity-specific).
+    if re.search(r"(?i)\b(founded|released|unveiled|published|launched)\b", question or ""):
+        for pat in (
+            r"(?i)\bfounded\s+(?:in|on)\b.{0,24}\b((?:19|20)\d{2})\b",
+            r"(?i)\breleased\s+(?:in|on)\b.{0,24}\b((?:19|20)\d{2})\b",
+            r"(?i)\bunveiled\b.{0,60}\b((?:19|20)\d{2})\b",
+            r"(?i)\blaunched\b.{0,40}\b((?:19|20)\d{2})\b",
+            r"(?i)\bpublished\s+(?:in|on)\b.{0,24}\b((?:19|20)\d{2})\b",
+        ):
+            m = re.search(pat, doc)
+            if m and extract.verify(m.group(1), doc):
+                return m.group(1)
     return None
 
 
