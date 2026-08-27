@@ -10,7 +10,9 @@ import re
 
 _JA = re.compile(r"[\u3040-\u30ff\u4e00-\u9fff]")
 
-# Common place names that appear in JA lookup templates.
+# Closed JA→EN place gloss for deterministic lookup templates only.
+# Intentionally small: English-first product; unlisted JA places stay JA and
+# typically refuse rather than invent a translation service.
 _PLACES = {
     "日本": "Japan",
     "東京": "Tokyo",

@@ -36,9 +36,7 @@ NONSEARCH = re.compile(
     r"implement |fn |def )"
 )
 
-# Shared place→capital map removed (closed entity table). Ranking uses
-# "Capital of {place}" / "is the capital" lexical cues instead.
-KNOWN_CAPITALS: dict[str, str] = {}
+# Closed country→city map removed; ranking uses lexical capital cues instead.
 
 
 @dataclass
@@ -992,12 +990,14 @@ def enrich_hits_for_answer(
         title = item.get("title") or ""
         url = item.get("url") or ""
         need = looks_like_fragment(snip) or (office and not has_person_name(snip))
-        # Keep strong CEO snippets — wiki lead sometimes softens "CEO of X".
+        # Keep strong CEO snippets when a person + role + asked org appear.
+        topic = question_topic(question or "") or ""
         if (
             office
             and has_person_name(snip)
             and re.search(r"(?i)\b(ceo|chief executive officer)\b.{0,40}\b", snip)
-            and re.search(r"(?i)\b(apple|microsoft|lvmh|google|alphabet)\b", snip)
+            and topic
+            and topic.casefold() in snip.casefold()
         ):
             need = False
         if want_when_year and not re.search(r"\b(?:1[89]\d{2}|20\d{2})\b", snip):
@@ -1271,7 +1271,7 @@ def prefer_answer_span(snippet: str, question: str) -> str:
             s = sent.strip()
             s = re.sub(r"(?i)^for merging\.\s*[›>]\s*", "", s)
             if has_person_name(s) and re.search(r"(?i)\bpresident", s):
-                if not re.search(r"(?i)\b(wife|spouse|brigitte)\b", s):
+                if not re.search(r"(?i)\b(wife|spouse|husband)\b", s):
                     return s.strip()
     if re.search(r"(?i)\bprime minister\b", question or ""):
         for sent in re.split(r"(?<=[.!?])\s+", snip):
@@ -1901,6 +1901,10 @@ _RELATION_CUES = {
     "capital": re.compile(r"(?i)\bcapital\b"),
     "born": re.compile(r"(?i)\bborn\b"),
     "published": re.compile(r"(?i)\b(published|publication)\b"),
+    "makes": re.compile(
+        r"(?i)\b(?:developed|manufactured|made|created|produced|owned)\s+by\b|"
+        r"\bsubsidiary of\b"
+    ),
 }
 
 
@@ -2508,14 +2512,13 @@ def core_fits_question(question: str, core: str | None) -> bool:
     m = re.search(r"(?i)what company makes (?:the )?(.+?)\??\s*$", question or "")
     if m:
         product = m.group(1).strip().rstrip("?.")
-        # Reject product-page titles like "Sony PlayStation"; want the maker.
-        if product and extract.norm(product) in extract.norm(c) and extract.norm(
-            c
-        ) != extract.norm(product):
-            if not re.fullmatch(
-                r"(?i)sony|microsoft|nintendo|apple|samsung|google|amazon", c
-            ):
-                return False
+        # Reject product-page titles that embed the product ("X PlayStation").
+        if (
+            product
+            and extract.norm(product) in extract.norm(c)
+            and extract.norm(c) != extract.norm(product)
+        ):
+            return False
     return True
 
 

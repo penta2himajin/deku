@@ -40,12 +40,13 @@ def has_concrete_topic(sub: str) -> bool:
     s = sub or ""
     if re.search(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b", s):
         return True
-    # "the iPhone", "the population of Tokyo", "of France"
+    # "the population of Tokyo", "of France"
     if re.search(r"(?i)\b(?:of|for)\s+(?:the\s+)?[A-Z][A-Za-z0-9.-]+\b", s):
         return True
-    if re.search(
-        r"(?i)\b(?:the\s+)?(iPhone|iPad|iPod|PlayStation|Xbox|Android)\b", s
-    ):
+    # camelCase product tokens (iPhone, PlayStation) without a closed brand list.
+    if re.search(r"\b(?:the\s+)?[a-z]+[A-Z][A-Za-z0-9]*\b", s):
+        return True
+    if re.search(r"\b(?:the\s+)?[A-Z][a-z]+[A-Z][A-Za-z0-9]*\b", s):
         return True
     if re.search(
         r"^(?:when|where|what|who)\b.+\b(?:the\s+)?[A-Z][A-Za-z0-9.-]+\b",

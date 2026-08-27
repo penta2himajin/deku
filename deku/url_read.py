@@ -245,10 +245,14 @@ def finalize_reply(
         if lead:
             return lead
         return core.strip()
-    # Prefer a template when MiniCPM core is grounded but summary failed.
-    templ = ws.template_reply(question, core or "", doc)
-    if templ:
-        return templ
+    # Prefer a classless grounded reply when MiniCPM core is usable.
+    composed = ws.compose_reply(core or "", "", doc, question=question or "")
+    if composed and ws.reply_grounded(composed, doc):
+        return composed
+    if not ws.classless_web_enabled():
+        templ = ws.template_reply(question, core or "", doc)
+        if templ:
+            return templ
     return lead
 
 
