@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest import mock
 
 from deku import web_search as ws
 
@@ -54,6 +55,18 @@ class TestFactCoreLiveShapes(unittest.TestCase):
             "Mobile, Alabama",
         )
 
+    def test_born_on_date_in_city_of_place(self):
+        # Common Wikipedia bio shape (lead omits place; early-life has this).
+        doc = (
+            "Tim Cook\n"
+            "Timothy Donald Cook was born on November 1, 1960, in the city of "
+            "Mobile, Alabama.\n"
+        )
+        self.assertEqual(
+            ws.fact_core_from_doc("Where was Tim Cook born?", doc),
+            "Mobile, Alabama",
+        )
+
 
 class TestRankBornDisambiguation(unittest.TestCase):
     def test_penalizes_disambiguation(self):
@@ -97,6 +110,28 @@ class TestHitsPackPopulation(unittest.TestCase):
 class TestWikiBirthPlaceParse(unittest.TestCase):
     def test_wiki_birth_place_dig_gone(self):
         self.assertFalse(hasattr(ws, "wiki_birth_place"))
+
+    def test_enrich_uses_full_extract_for_born_where(self):
+        # Lead-only extract lacks place; full page extract has early-life sentence.
+        hits = [
+            {
+                "title": "Tim Cook",
+                "snippet": (
+                    "Timothy Donald Cook (born November 1, 1960) is CEO of Apple."
+                ),
+                "url": "https://en.wikipedia.org/wiki/Tim_Cook",
+            }
+        ]
+        full = (
+            "Timothy Donald Cook (born November 1, 1960) is CEO of Apple.\n"
+            "== Early life ==\n"
+            "Timothy Donald Cook was born on November 1, 1960, in the city of "
+            "Mobile, Alabama.\n"
+        )
+        with mock.patch.object(ws, "wiki_page_extract", return_value=full):
+            out = ws.enrich_hits_for_answer("Where was Tim Cook born?", hits)
+        self.assertIn("Mobile", out[0].get("snippet") or "")
+        self.assertEqual(out[0].get("enriched"), "wiki_summary")
 
 
 if __name__ == "__main__":

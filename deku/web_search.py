@@ -322,6 +322,26 @@ def generic_hit_score(question: str, hit: dict) -> float:
                 r"(?i)\((given name|surname|name)\)", title
             ):
                 score += 4.0
+            # Prefer the asked office over a differently titled relative.
+            role_m = re.search(
+                r"(?i)\b(emperor|empress|president|prime minister|pope)\b",
+                question or "",
+            )
+            if role_m:
+                role = role_m.group(1).casefold()
+                if re.search(
+                    rf"(?i)\bis\s+(?:the\s+)?{re.escape(role)}\b"
+                    rf"|\b{re.escape(role)}\s+of\b",
+                    text,
+                ):
+                    score += 12.0
+                # Spouse / emerita pages: title is a different office word.
+                if role == "emperor" and re.search(r"(?i)\bempress\b", title):
+                    score -= 18.0
+                elif role == "empress" and re.search(
+                    r"(?i)\bemperor\b", title
+                ) and not re.search(r"(?i)\bempress\b", title):
+                    score -= 18.0
 
     return score
 
@@ -497,18 +517,24 @@ def wiki_page_summary(title: str) -> str:
     return (page.get("extract") or page.get("description") or "").strip()
 
 
-def wiki_page_extract(title: str, *, chars: int = 2500) -> str:
-    """Plain-text extract beyond the lead (for birthplace / early-life facts)."""
+def wiki_page_extract(title: str, *, chars: int | None = 2500) -> str:
+    """Plain-text extract beyond the lead (for birthplace / early-life facts).
+
+    Pass ``chars=None`` to omit MediaWiki ``exchars`` (lead-only caps miss
+    early-life birthplace sentences).
+    """
     if not (title or "").strip():
         return ""
-    q = urllib.parse.urlencode({
+    params: dict[str, str] = {
         "action": "query",
         "prop": "extracts",
         "explaintext": "1",
-        "exchars": str(chars),
         "titles": title,
         "format": "json",
-    })
+    }
+    if chars is not None:
+        params["exchars"] = str(chars)
+    q = urllib.parse.urlencode(params)
     try:
         raw = json.loads(_get(f"https://en.wikipedia.org/w/api.php?{q}"))
         pages = (raw.get("query") or {}).get("pages") or {}
@@ -630,7 +656,8 @@ def enrich_hits_for_answer(
         ):
             need = True
         if want_born_where and not re.search(
-            r"(?i)\bborn (?:in|at)\s+[A-Z]", snip
+            r"(?i)\bborn\b(?:[^.]{0,80}?)\bin\s+(?:the\s+city\s+of\s+)?[A-Z]",
+            snip,
         ):
             need = True
         if want_population and not re.search(
@@ -647,7 +674,10 @@ def enrich_hits_for_answer(
         ):
             need = True
         if need and title and "wikipedia.org" in url and "(disambiguation)" not in title.lower():
-            if want_born_where or want_birthday or want_born_when:
+            if want_born_where:
+                # Lead ``exchars`` truncates before early-life birthplace.
+                extract_text = wiki_page_extract(title, chars=None) or fetch(title) or ""
+            elif want_birthday or want_born_when:
                 extract_text = wiki_page_extract(title) or fetch(title) or ""
             else:
                 extract_text = fetch(title) or ""
@@ -678,8 +708,12 @@ def enrich_hits_for_answer(
                 ) and not re.search(r"(?i)\bfounded by\b", snip):
                     better = True
                 elif want_born_where and re.search(
-                    r"(?i)\bborn (?:in|at)\s+[A-Z]", extract_text
-                ) and not re.search(r"(?i)\bborn (?:in|at)\s+[A-Z]", snip):
+                    r"(?i)\bborn\b(?:[^.]{0,80}?)\bin\s+(?:the\s+city\s+of\s+)?[A-Z]",
+                    extract_text,
+                ) and not re.search(
+                    r"(?i)\bborn\b(?:[^.]{0,80}?)\bin\s+(?:the\s+city\s+of\s+)?[A-Z]",
+                    snip,
+                ):
                     better = True
                 elif want_birthday and re.search(
                     r"(?i)\(born\s+\d|\bborn\s+(?:on\s+)?\d", extract_text
@@ -711,7 +745,18 @@ def enrich_hits_for_answer(
                 ):
                     better = True
                 if better:
-                    item["snippet"] = extract_text[:900]
+                    # Prefer the birthplace sentence over a long page dump.
+                    packed = extract_text
+                    if want_born_where:
+                        for sent in re.split(r"(?<=[.!?])\s+", extract_text):
+                            if re.search(
+                                r"(?i)\bborn\b(?:[^.]{0,80}?)\bin\s+"
+                                r"(?:the\s+city\s+of\s+)?[A-Z]",
+                                sent,
+                            ):
+                                packed = sent.strip()
+                                break
+                    item["snippet"] = packed[:900]
                     item["enriched"] = "wiki_summary"
         out.append(item)
     return out
@@ -996,7 +1041,11 @@ def hits_to_document(hits: list[dict], *, snippet_chars: int = 320, question: st
                         break
             if not kept and re.search(r"(?i)\bborn\b", question or ""):
                 for sent in re.split(r"(?<=[.!?])\s+", snip):
-                    if re.search(r"(?i)\bborn (?:in|at)\s+[A-Z]", sent):
+                    if re.search(
+                        r"(?i)\bborn\b(?:[^.]{0,80}?)\bin\s+"
+                        r"(?:the\s+city\s+of\s+)?[A-Z]",
+                        sent,
+                    ):
                         kept = sent.strip()
                         break
             if not kept:

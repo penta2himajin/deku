@@ -132,6 +132,29 @@ class TestEmperorOfficeDigsRemoved(unittest.TestCase):
     def test_office_page_title_gone(self):
         self.assertFalse(hasattr(ws, "office_page_title"))
 
+    def test_current_emperor_birthday_prefers_incumbent_bio(self):
+        q = "What is the birthday of the current Emperor of Japan?"
+        hits = [
+            {
+                "title": "Empress Michiko",
+                "snippet": (
+                    "Michiko Shōda was born on 20 October 1934. "
+                    "She is the Empress Emerita of Japan."
+                ),
+                "url": "u1",
+            },
+            {
+                "title": "Naruhito",
+                "snippet": (
+                    "Naruhito (born 23 February 1960) is Emperor of Japan. "
+                    "He acceded to the Chrysanthemum Throne in 2019."
+                ),
+                "url": "u2",
+            },
+        ]
+        top = ws.rank_hits(q, hits, k=1)[0]
+        self.assertEqual(top["title"], "Naruhito")
+
 
 if __name__ == "__main__":
     unittest.main()

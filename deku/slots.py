@@ -228,6 +228,9 @@ def _extract_place(question: str, doc: str) -> str | None:
     for pat in (
         r"(?i)\bborn\s+(?:in|at)\s+"
         r"([A-Z][A-Za-z-]+(?:,[ \t]*[A-Z][A-Za-z-]+)?)",
+        # "born on 1 November 1960, in the city of Mobile, Alabama"
+        r"(?i)\bborn\b(?:[^.]{0,80}?)\bin\s+(?:the\s+city\s+of\s+)?"
+        r"([A-Z][A-Za-z-]+(?:,[ \t]*[A-Z][A-Za-z-]+)?)",
         r"(?i)\bbirthplace[:\s]+([A-Z][A-Za-z-]+(?:,[ \t]*[A-Z][A-Za-z-]+)?)",
         r"(?i)\braised\s+in\s+"
         r"([A-Z][A-Za-z-]+(?:,[ \t]*[A-Z][A-Za-z-]+)?)",
