@@ -1207,12 +1207,21 @@ def prefer_answer_span(snippet: str, question: str) -> str:
     if re.search(r"(?i)\bwho wrote\b", question or ""):
         for sent in re.split(r"(?<=[.!?])\s+", snip):
             s = sent.strip()
-            if re.search(r"(?i)\b(shakespeare|written by|play by|authored)\b", s):
+            if re.search(
+                r"(?i)\b(written by|play by|authored|novel by|tragedy by)\b", s
+            ) or (
+                has_person_name(s)
+                and re.search(r"(?i)\b(wrote|author|authored)\b", s)
+            ):
                 return s.strip()
     if re.search(r"(?i)\b(what company makes|makes the)\b", question or ""):
         for sent in re.split(r"(?<=[.!?])\s+", snip):
             s = sent.strip()
-            if re.search(r"(?i)\b(sony|developed by|manufactured by|created by|produced by)\b", s):
+            if re.search(
+                r"(?i)\b(developed by|manufactured by|created by|produced by|"
+                r"owned by|subsidiary of)\b",
+                s,
+            ):
                 return s.strip()
     if re.search(r"(?i)\bapollo\s*\d+\b", question or "") and re.search(
         r"(?i)\bwhen\b", question or ""
@@ -1299,7 +1308,7 @@ def fact_core_from_doc(question: str, document: str) -> str | None:
             r"(?i)\bfounded\s+by\s+"
             r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+(?:\s+and\s+"
             r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)?)",
-            r"(?i)\bco-?founded?\s+(?:Sony\s+)?(?:by\s+)?"
+            r"(?i)\bco-?founded?\s+(?:by\s+)?"
             r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)",
         ):
             mm = re.search(pat, doc)
@@ -1333,16 +1342,8 @@ def fact_core_from_doc(question: str, document: str) -> str | None:
         for pat in (
             rf"\b(?:written|authored) by\s+{_PERSON_NAME}",
             rf"\b(?:play|tragedy|comedy|novel|dystopian)\s+by\s+{_PERSON_NAME}",
-            r"\bby\s+(William Shakespeare)\b",
-            r"\bby\s+(George Orwell)\b",
-            r"\b(George Orwell)\b.{0,40}\b(?:novel|wrote|author)",
         ):
             mm = re.search(pat, doc)
-            if mm and extract.verify(mm.group(1), doc):
-                return mm.group(1)
-        # Prefer Orwell when the doc is the novel page.
-        if re.search(r"(?i)nineteen eighty-four|dystopian", title_line + doc):
-            mm = re.search(r"\b(George Orwell)\b", doc)
             if mm and extract.verify(mm.group(1), doc):
                 return mm.group(1)
     if re.search(r"(?i)\b(what company makes|makes the)\b", question or ""):
@@ -1352,10 +1353,6 @@ def fact_core_from_doc(question: str, document: str) -> str | None:
             r"(?i)\bsubsidiary of(?: Japanese conglomerate)?\s+([A-Z][A-Za-z0-9]+)",
         ):
             mm = re.search(pat, doc)
-            if mm and extract.verify(mm.group(1), doc):
-                return mm.group(1)
-        if re.search(r"(?i)\bplaystation\b", question or ""):
-            mm = re.search(r"(?i)\b(Sony)\b", doc)
             if mm and extract.verify(mm.group(1), doc):
                 return mm.group(1)
     if re.search(r"(?i)\bapollo\s*11\b", question or "") and re.search(

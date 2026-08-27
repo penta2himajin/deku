@@ -138,5 +138,23 @@ class TestEmperorFactCoreGeneric(unittest.TestCase):
         self.assertEqual(got, "Example Emperor")
 
 
+class TestNoFactCoreEntityLiterals(unittest.TestCase):
+    def test_who_wrote_uses_generic_by_pattern_not_shakespeare_literal(self):
+        doc = (
+            "Example Novel\n"
+            "Example Novel is a dystopian novel by Example Author.\n"
+        )
+        got = ws.fact_core_from_doc("Who wrote Example Novel?", doc)
+        self.assertEqual(got, "Example Author")
+
+    def test_maker_uses_generic_developed_by_not_sony_literal(self):
+        doc = (
+            "Example Console\n"
+            "The Example Console is developed and manufactured by Example Corp.\n"
+        )
+        got = ws.fact_core_from_doc("What company makes the Example Console?", doc)
+        self.assertEqual(got, "Example")
+
+
 if __name__ == "__main__":
     unittest.main()
