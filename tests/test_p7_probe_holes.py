@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
 import unittest
-from unittest import mock
 
 from deku import multi_hop as mh
 from deku import orchestrate as orch
@@ -53,17 +51,8 @@ class TestCeoSurnameGrounding(unittest.TestCase):
 
 
 class TestFounderSingular(unittest.TestCase):
-    def test_wiki_founders_accepts_singular_field(self):
-        wt = (
-            "{{Infobox company\n"
-            "| name = SpaceX\n"
-            "| founder = [[Elon Musk]]\n"
-            "| hq_location_city = [[Starbase, Texas]]\n"
-            "}}\n"
-        )
-        payload = {"parse": {"wikitext": {"*": wt}}}
-        with mock.patch.object(ws, "_get", return_value=json.dumps(payload)):
-            self.assertEqual(ws.wiki_founders("SpaceX"), "Elon Musk")
+    def test_wiki_founders_dig_gone(self):
+        self.assertFalse(hasattr(ws, "wiki_founders"))
 
 
 class TestCapitalCoreBleed(unittest.TestCase):

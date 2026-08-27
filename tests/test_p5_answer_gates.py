@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import unittest
-from unittest import mock
 
 from deku import web_search as ws
 
@@ -94,35 +93,11 @@ class TestRoleObjectIntent(unittest.TestCase):
         self.assertEqual(top[0]["title"], "Prime Minister's Official Car (Japan)")
 
 
-class TestIncumbentPrefer(unittest.TestCase):
-    def test_office_query_title(self):
-        self.assertEqual(
-            ws.office_page_title("Who is the prime minister of Japan?"),
-            "Prime Minister of Japan",
-        )
-        self.assertEqual(
-            ws.office_page_title("Who is the president of France?"),
-            "President of France",
-        )
-        self.assertIsNone(
-            ws.office_page_title(
-                "What is the official car of the prime minister of Japan?"
-            )
-        )
-
-    def test_prefer_incumbent_core_when_attested(self):
-        doc = (
-            "Prime Minister of Japan\n"
-            "The incumbent prime minister is Sanae Takaichi since 21 October 2025. "
-            "Sanae Takaichi is a Japanese politician."
-        )
-        with mock.patch.object(
-            ws, "wiki_incumbent_from_page", return_value="Sanae Takaichi"
-        ):
-            got = ws.preferred_incumbent_core(
-                "Who is the prime minister of Japan?", doc
-            )
-        self.assertEqual(got, "Sanae Takaichi")
+class TestIncumbentDigsRemoved(unittest.TestCase):
+    def test_office_and_incumbent_helpers_gone(self):
+        self.assertFalse(hasattr(ws, "office_page_title"))
+        self.assertFalse(hasattr(ws, "preferred_incumbent_core"))
+        self.assertFalse(hasattr(ws, "wiki_incumbent_from_page"))
 
 
 if __name__ == "__main__":

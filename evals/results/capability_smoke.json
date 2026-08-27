@@ -2,8 +2,8 @@
   "backend": "gguf",
   "base_url": "http://127.0.0.1:8080",
   "model": "MiniCPM5-1B",
-  "when": "2026-08-27T17:17:48.468523+00:00",
-  "passed": 24,
+  "when": "2026-08-27T17:31:01.723307+00:00",
+  "passed": 21,
   "total": 24,
   "rows": [
     {
@@ -13,7 +13,7 @@
       "status": "refused",
       "reason": "math",
       "answer": "I cannot help with math or calculation questions.",
-      "elapsed_ms": 1,
+      "elapsed_ms": 2,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -144,7 +144,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The CEO of Apple is Tim Cook.",
-      "elapsed_ms": 13377,
+      "elapsed_ms": 7481,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -164,8 +164,7 @@
         "slot",
         "slot_source",
         "summary",
-        "top_score",
-        "wikidata_ceo"
+        "top_score"
       ],
       "reply_source": "summary"
     },
@@ -176,7 +175,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The capital of France is Paris, the city that has been the capital since 1944.",
-      "elapsed_ms": 3531,
+      "elapsed_ms": 3534,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -203,7 +202,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Apple Inc. is headquartered in Cupertino, California, in Silicon Valley.",
-      "elapsed_ms": 2296,
+      "elapsed_ms": 2292,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -225,14 +224,18 @@
     },
     {
       "name": "web:cook_born",
-      "pass": true,
+      "pass": false,
       "tool": "web_search",
-      "status": "ok",
+      "status": "cannot_answer",
       "reason": null,
-      "answer": "Tim Cook was born in Mobile, Alabama.",
-      "elapsed_ms": 5155,
-      "fail_reasons": [],
+      "answer": "I cannot answer from the available sources.",
+      "elapsed_ms": 4206,
+      "fail_reasons": [
+        "status='cannot_answer' want 'ok'",
+        "answer missing /Mobile|Alabama/"
+      ],
       "detail_keys": [
+        "abstain_reason",
         "audience",
         "classless_web",
         "core",
@@ -242,15 +245,12 @@
         "extract_status",
         "next_hint",
         "raw_hits",
-        "reply_source",
         "router",
         "slot",
         "slot_source",
-        "summary",
-        "summary_rejected",
         "top_score"
       ],
-      "reply_source": "source_sentence"
+      "reply_source": null
     },
     {
       "name": "web:tokyo_population",
@@ -259,7 +259,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The population of Tokyo is over 14 million as of 2023.",
-      "elapsed_ms": 3984,
+      "elapsed_ms": 4218,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -287,7 +287,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The iPhone was released in the United States on June 29, 2007.",
-      "elapsed_ms": 3276,
+      "elapsed_ms": 3831,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -314,8 +314,8 @@
       "tool": "web_search",
       "status": "ok",
       "reason": null,
-      "answer": "Microsoft was founded in 1975.",
-      "elapsed_ms": 8584,
+      "answer": "Founded in 1975 by Bill Gates and Paul Allen to market BASIC interpreters for the Altair 8800, Microsoft rose to dominate the PC operating system market with MS-DOS in the mid-1980s, followed by Windows.",
+      "elapsed_ms": 4921,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -338,21 +338,23 @@
     },
     {
       "name": "web:emperor_birthday",
-      "pass": true,
+      "pass": false,
       "tool": "web_search",
       "status": "ok",
       "reason": null,
-      "answer": "Naruhito — (born 23 February 1960) is Emperor of Japan.",
-      "elapsed_ms": 15653,
-      "fail_reasons": [],
+      "answer": "Michiko Shōda was born on 20 October 1934 at the Unive",
+      "elapsed_ms": 3807,
+      "fail_reasons": [
+        "answer missing /23 February 1960|February 23,?\\s*1960|1960/"
+      ],
       "detail_keys": [
         "audience",
         "classless_web",
         "core",
         "cue",
         "doc_score",
+        "enriched",
         "extract_status",
-        "incumbent",
         "next_hint",
         "raw_hits",
         "reply_source",
@@ -372,7 +374,7 @@
       "status": "ok",
       "reason": null,
       "answer": "1. The CEO of Apple is Tim Cook.\n2. Apple headquartered in Cupertino, California, in Silicon Valley.",
-      "elapsed_ms": 14227,
+      "elapsed_ms": 9710,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -397,7 +399,7 @@
       "status": "ok",
       "reason": null,
       "answer": "1. The CEO of Apple is Tim Cook.\n2. The capital of France is Paris, the city that has been the capital since 1944.",
-      "elapsed_ms": 15966,
+      "elapsed_ms": 11176,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -421,8 +423,8 @@
       "tool": "multi_hop",
       "status": "ok",
       "reason": null,
-      "answer": "History of Microsoft — Microsoft is a computer technology corporation founded on April 4, 1975, by Bill Gates and Paul Allen in Albuquerque, New Mexico, United States. Microsoft was founded in 1975.",
-      "elapsed_ms": 18077,
+      "answer": "History of Microsoft — Microsoft is a computer technology corporation founded on April 4, 1975, by Bill Gates and Paul Allen in Albuquerque, New Mexico, United States. Founded in 1975 by Bill Gates and Paul Allen to market BASIC interpreters for the Altair 8800, Microsoft rose to dominate the PC operating system market with MS-DOS in the mid-1980s, followed by Windows.",
+      "elapsed_ms": 9792,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -442,13 +444,16 @@
     },
     {
       "name": "hop:dependent_born",
-      "pass": true,
+      "pass": false,
       "tool": "multi_hop",
-      "status": "ok",
+      "status": "partial",
       "reason": null,
-      "answer": "The CEO of Apple is Tim Cook. Tim Cook was born in Mobile, Alabama.",
-      "elapsed_ms": 17636,
-      "fail_reasons": [],
+      "answer": "1. The CEO of Apple is Tim Cook.\n\n(could not answer: Where was Tim Cook born?)",
+      "elapsed_ms": 11682,
+      "fail_reasons": [
+        "status='partial' want 'ok'",
+        "answer missing /(?s)Tim Cook.*(Mobile|Alabama)|(Mobile|Alabama).*Tim Cook/"
+      ],
       "detail_keys": [
         "audience",
         "cores",
@@ -471,8 +476,8 @@
       "tool": "multi_hop",
       "status": "ok",
       "reason": null,
-      "answer": "1. The last commit message is \"refactor: move relation cores to slots; drop Apollo/Emperor literals\".\n2. Kenya Nara (@penta2himajin) authored commit af6a1c0a8d73 (\"refactor: move relation cores to slots; drop Apollo/Emperor literals\").",
-      "elapsed_ms": 93,
+      "answer": "1. The last commit message is \"refactor: replace brand allowlists with generic topic and shape rules\".\n2. Kenya Nara (@penta2himajin) authored commit 47a5c6bbb79d (\"refactor: replace brand allowlists with generic topic and shape rules\").",
+      "elapsed_ms": 96,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -497,7 +502,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Humans landed the Moon on July 16, 1961, with one-fifth of the world's population. The US was engaged in the Cold War, and the Soviet Union had higher lift capacity. The speech was delivered at a football stadium in Houston. The Moon is a goal.",
-      "elapsed_ms": 3069,
+      "elapsed_ms": 3895,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -519,8 +524,8 @@
       "tool": "git_search",
       "status": "ok",
       "reason": null,
-      "answer": "The last commit message is \"refactor: move relation cores to slots; drop Apollo/Emperor literals\".",
-      "elapsed_ms": 49,
+      "answer": "The last commit message is \"refactor: replace brand allowlists with generic topic and shape rules\".",
+      "elapsed_ms": 45,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -539,7 +544,7 @@
       "status": "ok",
       "reason": null,
       "answer": "A MiniCPM5-1B–oriented local task harness: small factual jobs (web facts, URL summaries, repo lookup, git/diff, weak multi-step plans) with explicit refusals when the request is out of scope (see README.md).",
-      "elapsed_ms": 78,
+      "elapsed_ms": 79,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -568,7 +573,7 @@
       "status": "ok",
       "reason": null,
       "answer": "PREFILL is set to \"ANSWER: \" in deku/extract.py.",
-      "elapsed_ms": 117,
+      "elapsed_ms": 111,
       "fail_reasons": [],
       "detail_keys": [
         "audience",

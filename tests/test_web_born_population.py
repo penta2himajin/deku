@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import unittest
 
 from deku import web_search as ws
@@ -96,30 +95,8 @@ class TestHitsPackPopulation(unittest.TestCase):
 
 
 class TestWikiBirthPlaceParse(unittest.TestCase):
-    def test_strips_wiki_link(self):
-        # Offline: feed through a tiny monkeypatch of _get.
-        payload = {
-            "parse": {
-                "wikitext": {
-                    "*": (
-                        "{{Infobox person\n"
-                        "| birth_place = [[Mobile, Alabama]], U.S.\n"
-                        "}}\n"
-                    )
-                }
-            }
-        }
-
-        def fake_get(url, timeout=20):
-            return json.dumps(payload).encode()
-
-        import deku.web_search as mod
-        old = mod._get
-        mod._get = fake_get
-        try:
-            self.assertEqual(ws.wiki_birth_place("Tim Cook"), "Mobile, Alabama")
-        finally:
-            mod._get = old
+    def test_wiki_birth_place_dig_gone(self):
+        self.assertFalse(hasattr(ws, "wiki_birth_place"))
 
 
 if __name__ == "__main__":

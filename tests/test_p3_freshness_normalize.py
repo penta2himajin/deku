@@ -70,8 +70,9 @@ class TestJapaneseNormalize(unittest.TestCase):
         self.assertFalse(nz.looks_japanese("What is the capital of Japan?"))
 
     def test_rule_normalize_capital(self):
+        # No closed JA→EN place gloss: keep surface token.
         en, detail = nz.normalize_question("日本の首都はどこですか？")
-        self.assertEqual(en, "What is the capital of Japan?")
+        self.assertEqual(en, "What is the capital of 日本?")
         self.assertEqual(detail.get("normalized_from"), "ja")
 
     def test_rule_normalize_ceo(self):
@@ -81,7 +82,8 @@ class TestJapaneseNormalize(unittest.TestCase):
     def test_japanese_routes_after_normalize(self):
         got = rt.rule_route("日本の首都はどこですか？")
         self.assertEqual(got.tool, "web_search")
-        self.assertIn("Japan", got.query or got.detail.get("normalized") or "Japan")
+        blob = got.query or got.detail.get("normalized") or ""
+        self.assertTrue("日本" in blob or "capital" in blob.lower(), blob)
 
 
 if __name__ == "__main__":

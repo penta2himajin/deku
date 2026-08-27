@@ -1,34 +1,15 @@
-"""P6: office articles, Wikidata CEO, cross-entity web pairs."""
+"""P6: person-name gates and cross-entity web pairs (office/Wikidata digs removed)."""
 
 from __future__ import annotations
 
 import unittest
-from unittest import mock
 
 from deku import orchestrate as orch
 from deku import route as rt
 from deku import web_search as ws
 
 
-class TestOfficeArticles(unittest.TestCase):
-    def test_uk_keeps_the(self):
-        self.assertEqual(
-            ws.office_page_title("Who is the prime minister of the United Kingdom?"),
-            "Prime Minister of the United Kingdom",
-        )
-
-    def test_us_keeps_the(self):
-        self.assertEqual(
-            ws.office_page_title("Who is the president of the United States?"),
-            "President of the United States",
-        )
-
-    def test_japan_unchanged(self):
-        self.assertEqual(
-            ws.office_page_title("Who is the prime minister of Japan?"),
-            "Prime Minister of Japan",
-        )
-
+class TestTopicEchoPolity(unittest.TestCase):
     def test_topic_echo_matches_polity_without_article(self):
         # Echo gate: core "United Kingdom" vs question "... the United Kingdom"
         self.assertTrue(
@@ -45,55 +26,7 @@ class TestOfficeArticles(unittest.TestCase):
         )
 
 
-class TestWikidataCeo(unittest.TestCase):
-    def test_parse_ceo_claim(self):
-        # Minimal Wikidata entity JSON shape for P169 preferred rank.
-        entity = {
-            "claims": {
-                "P169": [
-                    {
-                        "rank": "preferred",
-                        "mainsnak": {
-                            "datavalue": {
-                                "value": {"id": "Q42"},
-                            }
-                        },
-                        "qualifiers": {},
-                    },
-                    {
-                        "rank": "normal",
-                        "mainsnak": {
-                            "datavalue": {
-                                "value": {"id": "Q1"},
-                            }
-                        },
-                        "qualifiers": {
-                            "P582": [{"datavalue": {"value": {"time": "+2011-08-24T00:00:00Z"}}}]
-                        },
-                    },
-                ]
-            }
-        }
-        self.assertEqual(ws.wikidata_ceo_id_from_entity(entity), "Q42")
-
-    def test_ceo_core_from_wikidata(self):
-        with mock.patch.object(ws, "wikidata_search_entity", return_value="Q123"):
-            with mock.patch.object(ws, "wikidata_entity", return_value={
-                "claims": {
-                    "P169": [{
-                        "rank": "preferred",
-                        "mainsnak": {
-                            "datavalue": {"value": {"id": "Q999"}},
-                        },
-                    }]
-                }
-            }):
-                with mock.patch.object(
-                    ws, "wikidata_label", return_value="Kenta Kon"
-                ):
-                    got = ws.wikidata_ceo_name("Toyota")
-        self.assertEqual(got, "Kenta Kon")
-
+class TestPersonNameGates(unittest.TestCase):
     def test_has_person_name_rejects_corp_suffix(self):
         self.assertFalse(
             ws.has_person_name("Sony Interactive Entertainment")

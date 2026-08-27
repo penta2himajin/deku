@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import unittest
 from unittest import mock
 
@@ -95,7 +94,8 @@ class TestBirthdayOfficeIncumbentPick(unittest.TestCase):
         top = ws.rank_hits(q, hits, k=1)[0]
         self.assertEqual(top["title"], "ExampleName")
 
-    def test_office_dig_skips_given_name_title(self):
+    def test_birthday_from_person_hit_without_office_dig(self):
+        # Office digs removed: birthday must come from ranked person page + extract.
         q = "What is the birthday of the current Emperor of Japan?"
         hits = [
             {
@@ -104,23 +104,15 @@ class TestBirthdayOfficeIncumbentPick(unittest.TestCase):
                 "url": "https://en.wikipedia.org/wiki/ExampleName_(given_name)",
             },
             {
-                "title": "Emperor of Japan",
-                "snippet": "The Emperor of Japan is the hereditary monarch.",
-                "url": "https://en.wikipedia.org/wiki/Emperor_of_Japan",
+                "title": "ExampleName",
+                "snippet": (
+                    "ExampleName (born 23 February 1960) is the Emperor of Japan. "
+                    "He acceded to the Chrysanthemum Throne in 2019."
+                ),
+                "url": "https://en.wikipedia.org/wiki/ExampleName",
             },
         ]
         with mock.patch.object(
-            ws, "wiki_incumbent_from_page", return_value="ExampleName"
-        ), mock.patch.object(
-            ws,
-            "wiki_page_summary",
-            return_value=(
-                "ExampleName (born 23 February 1960) is the Emperor of Japan. "
-                "He acceded to the Chrysanthemum Throne in 2019."
-            ),
-        ), mock.patch.object(
-            ws, "wiki_birth_date", return_value="23 February 1960"
-        ), mock.patch.object(
             ws, "search", return_value=hits
         ), mock.patch.object(
             ws, "enrich_hits_for_answer", side_effect=lambda q, hs, **k: hs
@@ -130,38 +122,15 @@ class TestBirthdayOfficeIncumbentPick(unittest.TestCase):
             ws, "minicpm_summarize", return_value=""
         ):
             out = ws.run(q)
-        self.assertTrue(
-            out.detail.get("incumbent_fetched")
-            or not re.search(
-                r"(?i)\(given name\)",
-                ((out.hits or [{}])[0].get("title") or ""),
-            ),
-            out.detail,
-        )
+        self.assertFalse(out.detail.get("incumbent_fetched"))
         self.assertIn("1960", out.document or "")
         self.assertEqual(out.status, "ok")
         self.assertRegex(out.answer or "", r"1960|February")
 
 
-class TestEmperorOfficeTitleGeneric(unittest.TestCase):
-    def test_emperor_of_place_not_japan_only(self):
-        self.assertEqual(
-            ws.office_page_title("Who is the current emperor of Japan?"),
-            "Emperor of Japan",
-        )
-        # Same shape for another polity title (page may or may not exist).
-        self.assertEqual(
-            ws.office_page_title("Who is the emperor of Exampleland?"),
-            "Emperor of Exampleland",
-        )
-
-    def test_birthday_of_current_emperor_resolves_office_title(self):
-        self.assertEqual(
-            ws.office_page_title(
-                "What is the birthday of the current Emperor of Japan?"
-            ),
-            "Emperor of Japan",
-        )
+class TestEmperorOfficeDigsRemoved(unittest.TestCase):
+    def test_office_page_title_gone(self):
+        self.assertFalse(hasattr(ws, "office_page_title"))
 
 
 if __name__ == "__main__":

@@ -32,7 +32,7 @@ class TestCanonicalize(unittest.TestCase):
 
     def test_prepare_chains_ja_then_canon(self):
         en, d = nz.prepare_question("日本の首都はどこですか？")
-        self.assertEqual(en, "What is the capital of Japan?")
+        self.assertEqual(en, "What is the capital of 日本?")
         self.assertEqual(d.get("normalized_from"), "ja")
 
     def test_route_uses_canonical_ceo(self):

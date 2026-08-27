@@ -183,8 +183,8 @@ def generic_hit_score(question: str, hit: dict) -> float:
         m = re.search(pat, question or "")
         if m:
             who = m.group(1).strip().rstrip("?.").rstrip("'s").strip()
-            # Office phrases ("current Emperor of Japan") are not person titles.
-            if office_page_title(question or "") and re.search(
+            # Office phrases ("current emperor of …") are not person titles.
+            if re.search(
                 r"(?i)\b(current|emperor|president|prime minister|pope)\b", who
             ):
                 break
@@ -310,10 +310,12 @@ def generic_hit_score(question: str, hit: dict) -> float:
     if re.search(r"(?i)\((given name|surname|name)\)", title):
         score -= 12.0
 
-    # Birthday of an office title ("current Emperor of Japan"): do not punish
-    # person / office pages for missing the full office phrase in the title.
+    # Birthday of an officeholder: boost bios with birth dates / person titles.
     if re.search(r"(?i)\b(birthday|birth date|date of birth)\b", question or ""):
-        if office_page_title(question or ""):
+        if re.search(
+            r"(?i)\b(current|emperor|president|prime minister|pope)\b",
+            question or "",
+        ):
             if re.search(r"(?i)\(born\s+\d|\bborn\s+(?:on\s+)?\d", text):
                 score += 8.0
             if has_person_name(title) and not re.search(
@@ -336,19 +338,11 @@ def looks_like_fragment(snippet: str) -> bool:
     return False
 
 
-_NON_PERSON = frozenset("""
-French Republic United States Prime Minister Chief Executive Officer
-South North East West New York Great Britain European Union World War
-Atmospheric Pressure Standard Boiling Point Chemical Element Holding Company
-France French Germany German Britain British America American China Chinese
-President Minister Republic Senate Congress Parliament Kingdom Empire
-The A An Of And Or For In On At To
-List Tenure History Presidency
-""".split())
-
-
 def has_person_name(text: str) -> bool:
-    """Heuristic: Cap Cap bigram that is not an obvious place/title/corp phrase."""
+    """Heuristic: Cap Cap bigram that is not an obvious title/corp phrase.
+
+    Uses structural role words only — no closed country/demonym table.
+    """
     t = text or ""
     if re.search(
         r"(?i)\b(inc\.?|corp\.?|corporation|ltd\.?|limited|llc|gmbh|"
@@ -357,9 +351,15 @@ def has_person_name(text: str) -> bool:
         t,
     ):
         return False
+    roleish = re.compile(
+        r"(?i)^(republic|states|kingdom|empire|minister|president|congress|"
+        r"parliament|company|element|point|union|war|east|west|north|south|"
+        r"list|tenure|history|presidency|chief|executive|officer|"
+        r"the|a|an|of|and|or|for|in|on|at|to)$"
+    )
     for m in re.finditer(r"\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\b", t):
         a, b = m.group(1), m.group(2)
-        if a in _NON_PERSON or b in _NON_PERSON:
+        if roleish.match(a) or roleish.match(b):
             continue
         return True
     return False
@@ -438,30 +438,6 @@ def _strip_article(s: str) -> str:
     return re.sub(r"(?i)^(the|a|an)\s+", "", (s or "").strip()).strip()
 
 
-# Polities whose English Wikipedia office titles keep a leading "the".
-_ARTICLED_POLITIES = frozenset({
-    "united kingdom", "united states", "united states of america",
-    "netherlands", "philippines", "united arab emirates",
-    "czech republic", "dominican republic", "bahamas", "maldives",
-    "marshall islands", "solomon islands", "seychelles", "gambia",
-    "sudan", "congo", "republic of the congo", "central african republic",
-})
-
-
-def wiki_office_place(place: str) -> str:
-    """Normalize a polity name for Wikipedia office-page titles."""
-    raw = (place or "").strip().rstrip("?.")
-    bare = _strip_article(raw)
-    if not bare:
-        return raw
-    if bare.casefold() in _ARTICLED_POLITIES or bare.casefold() == "us":
-        if bare.casefold() in ("us", "united states of america"):
-            bare = "United States"
-        # Preserve conventional capitalization from the bare form.
-        return f"the {bare}"
-    return bare
-
-
 def core_echoes_topic(question: str, core: str | None) -> bool:
     """True when the core merely repeats the asked-about org/place entity."""
     c = (core or "").strip()
@@ -488,50 +464,6 @@ def core_echoes_topic(question: str, core: str | None) -> bool:
     if cn in tn and not has_person_name(c):
         return True
     return False
-
-
-def office_page_title(question: str) -> str | None:
-    """Wikipedia office-page title for a present-tense office question."""
-    q = question or ""
-    # Object questions about cars/residences are not officeholder lookups.
-    if re.search(r"(?i)\b(car|residence|building|palace|vehicle)\b", q):
-        return None
-    if re.search(r"(?i)\bpope\b", q) and re.search(r"(?i)\bwho\b", q):
-        return "Pope"
-    m = re.search(
-        r"(?i)\bemperor of\s+(.+?)(?:'s)?(?:\s+(?:birthday|birth date|date of birth))?\??\s*$",
-        q,
-    )
-    if not m:
-        m = re.search(r"(?i)\bemperor of\s+([A-Za-z][A-Za-z .'-]*)", q)
-    if m:
-        place = wiki_office_place(m.group(1))
-        if place:
-            return f"Emperor of {place}"
-    m = re.search(r"(?i)\bprime minister of (.+?)\??\s*$", q)
-    if m:
-        place = wiki_office_place(m.group(1))
-        if place:
-            return f"Prime Minister of {place}"
-    m = re.search(r"(?i)\bpresident of (.+?)\??\s*$", q)
-    if m:
-        place = wiki_office_place(m.group(1))
-        if place:
-            return f"President of {place}"
-    return None
-
-
-def preferred_incumbent_core(question: str, document: str) -> str | None:
-    """Incumbent from the office page when attested in the working document."""
-    title = office_page_title(question or "")
-    if not title:
-        return None
-    name = wiki_incumbent_from_page(title)
-    if not name:
-        return None
-    if extract.norm(name) in extract.norm(document or ""):
-        return name
-    return None
 
 
 def wiki_page_summary(title: str) -> str:
@@ -587,322 +519,6 @@ def wiki_page_extract(title: str, *, chars: int = 2500) -> str:
     except Exception:
         pass
     return wiki_page_summary(title)
-
-
-def wiki_expand_current_leader(args: str) -> str | None:
-    """Resolve {{current leader|VAT|pope}} → 'Pope Leo XIV' via expandtemplates."""
-    args = (args or "").strip()
-    if not args:
-        return None
-    q = urllib.parse.urlencode({
-        "action": "expandtemplates",
-        "text": "{{current leader|" + args + "}}",
-        "prop": "wikitext",
-        "format": "json",
-    })
-    try:
-        raw = json.loads(_get(f"https://en.wikipedia.org/w/api.php?{q}"))
-    except Exception:
-        return None
-    wt = ((raw.get("expandtemplates") or {}).get("wikitext") or "")
-    m = re.search(r"\[\[([^\]|#]+)", wt)
-    if not m:
-        return None
-    name = html.unescape(m.group(1)).replace("\xa0", " ").replace("&nbsp;", " ")
-    name = re.sub(r"\s+", " ", name).strip()
-    name = re.sub(r"\s*\([^)]*\)\s*$", "", name).strip()
-    return name or None
-
-
-def wiki_incumbent_from_page(title: str) -> str | None:
-    """Parse office-page wikitext for |incumbent = [[Name]] / {{current leader|…}}."""
-    if not (title or "").strip():
-        return None
-    q = urllib.parse.urlencode({
-        "action": "parse",
-        "page": title,
-        "prop": "wikitext",
-        "section": "0",
-        "format": "json",
-    })
-    try:
-        raw = json.loads(_get(f"https://en.wikipedia.org/w/api.php?{q}"))
-    except Exception:
-        return None
-    wt = ((raw.get("parse") or {}).get("wikitext") or {}).get("*") or ""
-    m = re.search(
-        r"(?im)(?:^|\|)\s*incumbent\s*=\s*\{\{\s*current\s+leader\s*\|([^}]+)\}\}",
-        wt,
-    )
-    if m:
-        return wiki_expand_current_leader(m.group(1))
-    m = re.search(
-        r"(?im)(?:^|\|)\s*incumbent\s*=\s*\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]",
-        wt,
-    )
-    if not m:
-        m = re.search(
-            r"(?i)current (?:prime minister|president|pope) is\s*\[\[([^\]|#]+)",
-            wt,
-        )
-    if not m:
-        return None
-    name = m.group(1).strip()
-    # Drop disambiguation crumbs like "Name (politician)"
-    name = re.sub(r"\s*\([^)]*\)\s*$", "", name).strip()
-    return name or None
-
-
-def wikidata_search_entity(name: str) -> str | None:
-    """Resolve an org/person label to a Wikidata Q-id (best search hit)."""
-    if not (name or "").strip():
-        return None
-    q = urllib.parse.urlencode({
-        "action": "wbsearchentities",
-        "search": name.strip(),
-        "language": "en",
-        "type": "item",
-        "limit": "1",
-        "format": "json",
-    })
-    try:
-        raw = json.loads(_get(f"https://www.wikidata.org/w/api.php?{q}", timeout=15))
-    except Exception:
-        return None
-    hits = raw.get("search") or []
-    if not hits:
-        return None
-    return (hits[0].get("id") or "").strip() or None
-
-
-def wikidata_entity(qid: str) -> dict | None:
-    if not (qid or "").strip():
-        return None
-    q = urllib.parse.urlencode({
-        "action": "wbgetentities",
-        "ids": qid.strip(),
-        "props": "claims|labels",
-        "languages": "en",
-        "format": "json",
-    })
-    try:
-        raw = json.loads(_get(f"https://www.wikidata.org/w/api.php?{q}", timeout=15))
-    except Exception:
-        return None
-    return ((raw.get("entities") or {}).get(qid.strip())) or None
-
-
-def wikidata_label(qid: str) -> str | None:
-    ent = wikidata_entity(qid)
-    if not ent:
-        return None
-    lab = ((ent.get("labels") or {}).get("en") or {}).get("value")
-    return (lab or "").strip() or None
-
-
-def wikidata_ceo_id_from_entity(entity: dict | None) -> str | None:
-    """Pick current chief executive officer (P169); skip ended tenures."""
-    if not entity:
-        return None
-    claims = (entity.get("claims") or {}).get("P169") or []
-    preferred = []
-    normal = []
-    for claim in claims:
-        if claim.get("rank") == "deprecated":
-            continue
-        # End time qualifier P582 → former CEO.
-        quals = claim.get("qualifiers") or {}
-        if quals.get("P582"):
-            continue
-        snak = (claim.get("mainsnak") or {}).get("datavalue") or {}
-        val = snak.get("value") or {}
-        cid = (val.get("id") if isinstance(val, dict) else None) or ""
-        if not cid:
-            continue
-        if claim.get("rank") == "preferred":
-            preferred.append(cid)
-        else:
-            normal.append(cid)
-    if preferred:
-        return preferred[0]
-    if normal:
-        return normal[0]
-    return None
-
-
-def wikidata_ceo_name(org: str) -> str | None:
-    """Current CEO label for an organization via Wikidata P169."""
-    org = (org or "").strip()
-    if not org:
-        return None
-    candidates = [
-        f"{org} Motor Corporation",
-        f"{org} Motor Company",
-        f"{org}, Inc.",
-        f"{org} Inc.",
-        org,
-    ]
-    # De-dupe while preserving order.
-    seen: set[str] = set()
-    for cand in candidates:
-        key = cand.casefold()
-        if key in seen:
-            continue
-        seen.add(key)
-        qid = wikidata_search_entity(cand)
-        if not qid:
-            continue
-        ent = wikidata_entity(qid)
-        ceo_id = wikidata_ceo_id_from_entity(ent)
-        if not ceo_id:
-            continue
-        label = wikidata_label(ceo_id)
-        if label:
-            return label
-    return None
-
-
-def wiki_birth_place(title: str) -> str | None:
-    """Parse biography lead wikitext for |birth_place = …."""
-    if not (title or "").strip():
-        return None
-    q = urllib.parse.urlencode({
-        "action": "parse",
-        "page": title,
-        "prop": "wikitext",
-        "section": "0",
-        "format": "json",
-    })
-    try:
-        raw = json.loads(_get(f"https://en.wikipedia.org/w/api.php?{q}"))
-    except Exception:
-        return None
-    wt = ((raw.get("parse") or {}).get("wikitext") or {}).get("*") or ""
-    m = re.search(r"(?im)^\|\s*birth_place\s*=\s*(.+)$", wt)
-    if not m:
-        return None
-    raw_val = re.split(r"<ref|\{\{", m.group(1), maxsplit=1)[0].strip()
-    links = re.findall(r"\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]", raw_val)
-    if links:
-        return links[0].strip() or None
-    plain = re.sub(r"\[\[|\]\]|'+", "", raw_val).strip().rstrip(",")
-    return plain or None
-
-
-def wiki_birth_date(title: str) -> str | None:
-    """Parse biography lead wikitext for |birth_date = {{birth date…}} / prose."""
-    if not (title or "").strip():
-        return None
-    q = urllib.parse.urlencode({
-        "action": "parse",
-        "page": title,
-        "prop": "wikitext",
-        "section": "0",
-        "format": "json",
-    })
-    try:
-        raw = json.loads(_get(f"https://en.wikipedia.org/w/api.php?{q}"))
-    except Exception:
-        return None
-    wt = ((raw.get("parse") or {}).get("wikitext") or {}).get("*") or ""
-    m = re.search(r"(?im)^\|\s*birth_date\s*=\s*(.+)$", wt)
-    if not m:
-        return None
-    raw_val = m.group(1).strip()
-    # {{birth date and age|1960|11|1|df=y}} / {{birth date|1564|4|26}}
-    mm = re.search(
-        r"(?i)\{\{\s*birth[\s_]?date(?:\s+and\s+age)?\s*\|"
-        r"\s*(\d{4})\s*\|\s*(\d{1,2})\s*\|\s*(\d{1,2})",
-        raw_val,
-    )
-    if mm:
-        year, month, day = int(mm.group(1)), int(mm.group(2)), int(mm.group(3))
-        months = (
-            "January February March April May June July August "
-            "September October November December"
-        ).split()
-        if 1 <= month <= 12:
-            return f"{day} {months[month - 1]} {year}"
-    mm = re.search(
-        r"(?i)(\d{1,2}\s+(?:January|February|March|April|May|June|July|"
-        r"August|September|October|November|December)\s+\d{4})",
-        raw_val,
-    )
-    if mm:
-        return mm.group(1).strip()
-    return None
-
-
-def wiki_founded_year(title: str) -> str | None:
-    """Parse company lead wikitext for |founded = {{Start date…|YYYY|…}}."""
-    if not (title or "").strip():
-        return None
-    q = urllib.parse.urlencode({
-        "action": "parse",
-        "page": title,
-        "prop": "wikitext",
-        "section": "0",
-        "format": "json",
-    })
-    try:
-        raw = json.loads(_get(f"https://en.wikipedia.org/w/api.php?{q}"))
-    except Exception:
-        return None
-    wt = ((raw.get("parse") or {}).get("wikitext") or {}).get("*") or ""
-    m = re.search(r"(?im)^\|\s*founded\s*=\s*(.+)$", wt)
-    if not m:
-        return None
-    raw_val = m.group(1).strip()
-    mm = re.search(
-        r"(?i)\{\{\s*start[\s_]?date(?:\s+and\s+age)?\s*\|\s*(\d{4})",
-        raw_val,
-    )
-    if mm:
-        return mm.group(1)
-    mm = re.search(r"\b((?:19|20)\d{2})\b", raw_val)
-    return mm.group(1) if mm else None
-
-
-def wiki_founders(title: str) -> str | None:
-    """Parse company lead wikitext for |founders = {{Unbulleted list|[[A]]|[[B]]}}."""
-    if not (title or "").strip():
-        return None
-    q = urllib.parse.urlencode({
-        "action": "parse",
-        "page": title,
-        "prop": "wikitext",
-        "section": "0",
-        "format": "json",
-    })
-    try:
-        raw = json.loads(_get(f"https://en.wikipedia.org/w/api.php?{q}"))
-    except Exception:
-        return None
-    wt = ((raw.get("parse") or {}).get("wikitext") or {}).get("*") or ""
-    m = re.search(
-        r"(?is)(?:^|\|)\s*founders?\s*=\s*(.+?)(?:\n\|[a-z_]+\s*=|\n\}\})",
-        wt,
-    )
-    if not m:
-        return None
-    block = m.group(1)
-    names = []
-    for link in re.findall(r"\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]", block):
-        name = link.strip()
-        if not name or name.startswith("#") or re.search(r"(?i)founding|see ", name):
-            continue
-        # Skip facility / place links that are not people.
-        if re.search(r"(?i)\b(gigafactory|factory|plant|texas|california)\b", name):
-            continue
-        if re.fullmatch(r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+", name):
-            names.append(name)
-        if len(names) >= 2:
-            break
-    if not names:
-        return None
-    if len(names) == 1:
-        return names[0]
-    return f"{names[0]} and {names[1]}"
 
 
 def age_years_from_birth_date(birth: str, *, today=None) -> int | None:
@@ -1031,72 +647,10 @@ def enrich_hits_for_answer(
         ):
             need = True
         if need and title and "wikipedia.org" in url and "(disambiguation)" not in title.lower():
-            place = None
-            if want_born_where:
-                who = re.search(
-                    r"(?i)where (?:was|is) (.+?) born", question or ""
-                )
-                if who and re.fullmatch(
-                    re.escape(who.group(1).strip()), title.strip(), flags=re.I
-                ):
-                    place = wiki_birth_place(title)
             if want_born_where or want_birthday or want_born_when:
                 extract_text = wiki_page_extract(title) or fetch(title) or ""
             else:
                 extract_text = fetch(title) or ""
-            if place:
-                extract_text = f"{title} was born in {place}.\n{extract_text}".strip()
-            if want_founded_when:
-                year = wiki_founded_year(title)
-                if year:
-                    extract_text = (
-                        f"{title} was founded in {year}.\n{extract_text}"
-                    ).strip()
-            if want_who_founded:
-                founders = wiki_founders(title)
-                if founders:
-                    extract_text = (
-                        f"{title} was founded by {founders}.\n{extract_text}"
-                    ).strip()
-            if want_birthday or want_born_when:
-                who = None
-                m = re.search(
-                    r"(?i)(?:birthday|birth date|date of birth)\s+of\s+(?:the\s+)?(.+?)\??\s*$",
-                    question or "",
-                )
-                if m:
-                    who = m.group(1).strip().rstrip("?.")
-                else:
-                    m = re.search(
-                        r"(?i)what is ([A-Z][^?'\"]+?)(?:'s)? birthday",
-                        question or "",
-                    )
-                    if m:
-                        who = m.group(1).strip().rstrip("'s").strip()
-                if not who:
-                    m = re.search(
-                        r"(?i)how old (?:is|are) ([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)",
-                        question or "",
-                    )
-                    if m:
-                        who = m.group(1).strip()
-                if not who:
-                    m = re.search(r"(?i)when (?:was|were) (.+?) born", question or "")
-                    if m:
-                        who = m.group(1).strip().rstrip("?.")
-                if who and re.search(
-                    r"(?i)\b(current|emperor|president|prime minister|pope)\b", who
-                ):
-                    ot = office_page_title(question or "")
-                    if ot:
-                        who = wiki_incumbent_from_page(ot) or who
-                if who and re.fullmatch(re.escape(who), title.strip(), flags=re.I):
-                    bdate = wiki_birth_date(title)
-                    if bdate:
-                        extract_text = (
-                            f"{title} (born {bdate}) is described in the biography.\n"
-                            f"{extract_text}"
-                        ).strip()
             if extract_text:
                 better = False
                 q_snip = float(extract.term_score(question, snip))
@@ -1123,12 +677,9 @@ def enrich_hits_for_answer(
                     r"(?i)\bfounded by\b", extract_text
                 ) and not re.search(r"(?i)\bfounded by\b", snip):
                     better = True
-                elif want_born_where and (
-                    place
-                    or re.search(r"(?i)\bborn (?:in|at)\s+[A-Z]", extract_text)
+                elif want_born_where and re.search(
+                    r"(?i)\bborn (?:in|at)\s+[A-Z]", extract_text
                 ) and not re.search(r"(?i)\bborn (?:in|at)\s+[A-Z]", snip):
-                    better = True
-                elif want_born_where and place:
                     better = True
                 elif want_birthday and re.search(
                     r"(?i)\(born\s+\d|\bborn\s+(?:on\s+)?\d", extract_text
@@ -1149,7 +700,6 @@ def enrich_hits_for_answer(
                 ):
                     better = True
                 elif looks_like_fragment(snip) and not looks_like_fragment(extract_text):
-                    # Only upgrade fragments when the summary is at least as on-topic.
                     if q_ext >= q_snip and (
                         has_person_name(extract_text)
                         or re.search(r"\d", extract_text)
@@ -1589,14 +1139,6 @@ def search(query: str, limit: int = 5, *, question: str = "") -> list[dict]:
                 seen.add(h["url"])
                 hits.append(h)
 
-    ot = office_page_title(question) if question else None
-    if ot:
-        _add(search_wikipedia(ot, limit=limit))
-        _add(search_wikipedia_text(ot, limit=limit))
-        name = wiki_incumbent_from_page(ot)
-        if name:
-            _add(search_wikipedia(name, limit=limit))
-            _add(search_wikipedia_text(name, limit=limit))
     for q in queries:
         _add(search_wikipedia(q, limit=limit))
         _add(search_wikipedia_text(q, limit=limit))
@@ -2599,129 +2141,8 @@ def run(question: str, *, router: str = "rule", k: int = 4,
     doc_score = float(extract.term_score(question, doc))
     out.detail["doc_score"] = doc_score
     office_core = office_core_from_hit(question, top, doc)
-    # Prefer the Wikipedia incumbent's person page when present in hits.
-    ot = office_page_title(question)
-    if ot:
-        inc_name = wiki_incumbent_from_page(ot)
-        if inc_name:
-            out.detail["incumbent"] = inc_name
-            picked = False
-            for _sc, h in scored:
-                title_h = (h.get("title") or "").strip()
-                if re.search(r"(?i)\((given name|surname|name)\)", title_h):
-                    continue
-                if re.fullmatch(re.escape(inc_name), title_h, flags=re.I) or (
-                    extract.norm(inc_name) in extract.norm(title_h)
-                    and has_person_name(title_h)
-                ):
-                    top = h
-                    top_score = _sc
-                    out.detail["top_score"] = top_score
-                    doc = hits_to_document([top], question=question)
-                    out.document = doc
-                    doc_score = float(extract.term_score(question, doc))
-                    out.detail["doc_score"] = doc_score
-                    office_core = office_core_from_hit(question, top, doc) or inc_name
-                    picked = True
-                    break
-            # Prefer exact person title; fall through to bio fetch if only
-            # onomastic / office pages matched poorly.
-            if picked and re.search(
-                r"(?i)\((given name|surname|name)\)",
-                (top.get("title") or ""),
-            ):
-                picked = False
-            want_bday = bool(
-                re.search(
-                    r"(?i)\b(birthday|birth date|date of birth|how old)\b",
-                    question or "",
-                )
-            )
-            if picked and want_bday and not re.search(
-                r"(?i)\(born\s+\d|\bborn\s+(?:on\s+)?\d", doc
-            ):
-                picked = False
-            if not picked:
-                if (
-                    not want_bday
-                    and extract.norm(inc_name) in extract.norm(doc)
-                ):
-                    office_core = inc_name
-                else:
-                    # Incumbent known but missing from ranked hits — fetch bio.
-                    bio = wiki_page_summary(inc_name) or ""
-                    if want_bday:
-                        bdate = wiki_birth_date(inc_name)
-                        if bdate:
-                            bio = (
-                                f"{inc_name} (born {bdate}).\n{bio}"
-                            ).strip()
-                    if bio and len(bio.split()) >= 8:
-                        top = {
-                            "title": inc_name,
-                            "snippet": bio[:500],
-                            "url": (
-                                "https://en.wikipedia.org/wiki/"
-                                + urllib.parse.quote(inc_name.replace(" ", "_"))
-                            ),
-                        }
-                        top_score = max(float(top_score), float(MIN_HIT_SCORE) + 2.0)
-                        out.detail["top_score"] = top_score
-                        doc = hits_to_document([top], question=question)
-                        out.document = doc
-                        doc_score = float(extract.term_score(question, doc))
-                        out.detail["doc_score"] = doc_score
-                        office_core = inc_name
-                        out.detail["incumbent_fetched"] = True
     if office_core and is_predecessor_core(office_core, doc, question):
         office_core = None
-    # Corporate CEO via Wikidata P169 when Wikipedia leads omit the name.
-    if (
-        re.search(r"(?i)\bwho\b", question or "")
-        and re.search(r"(?i)\b(ceo|chief executive)\b", question or "")
-    ):
-        org = question_topic(question) or ""
-        org = _strip_article(org)
-        if org:
-            ceo = wikidata_ceo_name(org)
-            if ceo:
-                out.detail["wikidata_ceo"] = ceo
-                picked = False
-                for _sc, h in scored:
-                    title_h = (h.get("title") or "").strip()
-                    if re.fullmatch(re.escape(ceo), title_h, flags=re.I) or (
-                        extract.norm(ceo) in extract.norm(title_h)
-                        and (has_person_name(title_h) or re.fullmatch(r"[A-Z][a-z]+", title_h))
-                    ):
-                        top = h
-                        top_score = max(float(_sc), float(MIN_HIT_SCORE) + 2.0)
-                        out.detail["top_score"] = top_score
-                        doc = hits_to_document([top], question=question)
-                        out.document = doc
-                        doc_score = float(extract.term_score(question, doc))
-                        out.detail["doc_score"] = doc_score
-                        office_core = ceo
-                        picked = True
-                        break
-                if not picked:
-                    bio = wiki_page_summary(ceo)
-                    if bio and len(bio.split()) >= 8:
-                        top = {
-                            "title": ceo,
-                            "snippet": bio[:500],
-                            "url": (
-                                "https://en.wikipedia.org/wiki/"
-                                + urllib.parse.quote(ceo.replace(" ", "_"))
-                            ),
-                        }
-                        top_score = max(float(top_score), float(MIN_HIT_SCORE) + 2.0)
-                        out.detail["top_score"] = top_score
-                        doc = hits_to_document([top], question=question)
-                        out.document = doc
-                        doc_score = float(extract.term_score(question, doc))
-                        out.detail["doc_score"] = doc_score
-                        office_core = ceo
-                        out.detail["ceo_fetched"] = True
     if top_score < MIN_HIT_SCORE:
         out.answer, out.status = CANNOT_ANSWER, "cannot_answer"
         out.detail["abstain_reason"] = "weak_or_off_topic_hit"
@@ -2743,14 +2164,10 @@ def run(question: str, *, router: str = "rule", k: int = 4,
                 doc = hits_to_document([top], question=question)
                 out.document = doc
                 break
-        bdate = wiki_birth_date(who)
         title = (top.get("title") or "").strip()
-        if not bdate and re.fullmatch(re.escape(who), title, flags=re.I):
-            bdate = wiki_birth_date(title)
-        if not bdate:
-            bdate = slot_mod.extract_typed(
-                "date", f"What is {who}'s birthday?", doc
-            )
+        bdate = slot_mod.extract_typed(
+            "date", f"What is {who}'s birthday?", doc
+        )
         years = age_years_from_birth_date(bdate) if bdate else None
         title_ok = bool(re.fullmatch(re.escape(who), title, flags=re.I))
         grounded = bool(
@@ -2781,8 +2198,6 @@ def run(question: str, *, router: str = "rule", k: int = 4,
     # Low doc_score alone is not enough to abstain yet: short pages (Hamlet,
     # product brands) often share few question terms but still hold the answer.
     fact = fact_core_from_doc(question, doc)
-    inc_core = preferred_incumbent_core(question, doc)
-    wd_ceo = (out.detail.get("wikidata_ceo") or "").strip() or None
     classless = classless_web_enabled()
     out.detail["classless_web"] = classless
 
@@ -2794,8 +2209,8 @@ def run(question: str, *, router: str = "rule", k: int = 4,
         return population_figure_grounded(val, doc)
 
     if classless:
-        # Classless: typed slots first; office / Wikidata; MiniCPM; no closed
-        # relation fact_core table (slots + lexical acronym/chemical only).
+        # Classless: typed slots first; office title core; MiniCPM; lexical
+        # acronym/chemical via fact_core.
         if (
             typed
             and slot in ("date", "number", "place", "person", "org")
@@ -2809,24 +2224,10 @@ def run(question: str, *, router: str = "rule", k: int = 4,
             and not is_predecessor_core(office_core, doc, question)
         ):
             core, status = office_core, "title_core"
-        elif inc_core and core_fits_question(question, inc_core):
-            core, status = inc_core, "incumbent_core"
-        elif (
-            wd_ceo
-            and not core_echoes_topic(question, wd_ceo)
-            and (
-                out.detail.get("ceo_fetched")
-                or extract.norm(wd_ceo) in extract.norm(doc)
-                or extract.norm(_strip_article(wd_ceo)) in extract.norm(doc)
-            )
-        ):
-            core, status = wd_ceo, "wikidata_ceo"
         else:
             core, status = minicpm_extract(question, doc, seed=seed)
             if core and not _pop_ok(core):
                 core = None
-            # Acronym / chemical lexical core only (fact_core no longer holds
-            # relation shape tables).
             if (not core or not core_fits_question(question, core)) and fact and _pop_ok(
                 fact
             ):
@@ -2839,25 +2240,12 @@ def run(question: str, *, router: str = "rule", k: int = 4,
     # Acronym "What is NASA?" — prefer lexical expansion over MiniCPM cores.
     elif fact and re.search(r"(?i)^\s*what is\s+[A-Z]{2,8}\??\s*$", question or ""):
         core, status = fact, "doc_core"
-    elif inc_core and core_fits_question(question, inc_core):
-        core, status = inc_core, "incumbent_core"
-    elif (
-        wd_ceo
-        and not core_echoes_topic(question, wd_ceo)
-        and (
-            out.detail.get("ceo_fetched")
-            or extract.norm(wd_ceo) in extract.norm(doc)
-            or extract.norm(_strip_article(wd_ceo)) in extract.norm(doc)
-        )
-    ):
-        core, status = wd_ceo, "wikidata_ceo"
     elif (
         fact
         and re.search(r"(?i)\b(headquarters?|headquartered|based|population|published)\b", question or "")
         and core_fits_question(question, fact)
         and _pop_ok(fact)
     ):
-        # Place / count / year facts beat MiniCPM org echoes.
         core, status = fact, "doc_core"
     elif (
         typed
@@ -2865,7 +2253,6 @@ def run(question: str, *, router: str = "rule", k: int = 4,
         and core_fits_question(question, typed)
         and _pop_ok(typed)
     ):
-        # Measured: MiniCPM is weak on bare dates/places/numbers; typed wins.
         core, status = typed, "typed_core"
     else:
         core, status = minicpm_extract(question, doc, seed=seed)
@@ -2884,54 +2271,35 @@ def run(question: str, *, router: str = "rule", k: int = 4,
         is_degenerate_core(core, question)
         or core_echoes_topic(question, core)
         or is_predecessor_core(core, doc, question)
-        or (
-            not predicate_supported(question, core, doc)
-            and not (status == "wikidata_ceo" and out.detail.get("ceo_fetched"))
-        )
+        or not predicate_supported(question, core, doc)
     ):
         out.detail["core_rejected"] = core
         rejected = core
         core, status = None, "core_rejected"
         for cand, st in (
             (office_core, "title_core"),
-            (inc_core, "incumbent_core"),
-            (wd_ceo, "wikidata_ceo"),
             (fact, "doc_core"),
         ):
             if not cand or extract.norm(cand) == extract.norm(rejected):
                 continue
-            if st == "wikidata_ceo" and (
-                core_echoes_topic(question, cand)
-                or not (
-                    out.detail.get("ceo_fetched")
-                    or extract.norm(cand) in extract.norm(doc)
-                    or extract.norm(_strip_article(cand)) in extract.norm(doc)
-                )
-            ):
-                continue
             if (
-                not core_fits_question(question, cand)
-                or is_degenerate_core(cand, question)
-                or core_echoes_topic(question, cand)
-                or is_predecessor_core(cand, doc, question)
+                not is_degenerate_core(cand, question)
+                and not core_echoes_topic(question, cand)
+                and not is_predecessor_core(cand, doc, question)
+                and core_fits_question(question, cand)
+                and _pop_ok(cand)
+                and predicate_supported(question, cand, doc)
             ):
-                continue
-            if not predicate_supported(question, cand, doc) and not (
-                st == "wikidata_ceo" and out.detail.get("ceo_fetched")
-            ):
-                continue
-            if st == "doc_core" and not _pop_ok(cand):
-                continue
-            core, status = cand, st
-            break
+                core, status = cand, st
+                break
+        if not core and typed and core_fits_question(question, typed) and _pop_ok(typed):
+            core, status = typed, "typed_core"
     out.detail["core"] = core
     out.detail["extract_status"] = status
     if should_abstain(question=question, doc=doc, score=top_score, core=core):
-        # Fetched Wikidata CEO bios may use ASCII vs macron spelling mismatch.
-        if not (status == "wikidata_ceo" and out.detail.get("ceo_fetched") and core):
-            out.answer, out.status = CANNOT_ANSWER, "cannot_answer"
-            out.detail["abstain_reason"] = "no_grounded_core"
-            return out
+        out.answer, out.status = CANNOT_ANSWER, "cannot_answer"
+        out.detail["abstain_reason"] = "no_grounded_core"
+        return out
     summary = minicpm_summarize(question, doc, seed=seed)
     out.detail["summary"] = summary
     if summary and core and core_in_reply(core, summary) and not reply_grounded(summary, doc):

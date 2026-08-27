@@ -10,36 +10,14 @@ import re
 
 _JA = re.compile(r"[\u3040-\u30ff\u4e00-\u9fff]")
 
-# Closed JA→EN place gloss for deterministic lookup templates only.
-# Intentionally small: English-first product; unlisted JA places stay JA and
-# typically refuse rather than invent a translation service.
-_PLACES = {
-    "日本": "Japan",
-    "東京": "Tokyo",
-    "京都": "Kyoto",
-    "大阪": "Osaka",
-    "アメリカ": "the United States",
-    "米国": "the United States",
-    "フランス": "France",
-    "ドイツ": "Germany",
-    "中国": "China",
-    "韓国": "South Korea",
-    "イギリス": "the United Kingdom",
-    "英国": "the United Kingdom",
-    "オーストラリア": "Australia",
-    "カナダ": "Canada",
-    "ペルー": "Peru",
-    "ケニア": "Kenya",
-}
-
 
 def looks_japanese(question: str) -> bool:
     return bool(_JA.search(question or ""))
 
 
+# No closed JA→EN place gloss: keep the surface token and let retrieval handle it.
 def _place_en(raw: str) -> str:
-    s = (raw or "").strip()
-    return _PLACES.get(s, s)
+    return (raw or "").strip()
 
 
 def normalize_question(question: str) -> tuple[str, dict]:
