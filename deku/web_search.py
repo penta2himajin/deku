@@ -87,7 +87,11 @@ CANNOT_ANSWER = "I cannot answer from the available sources."
 
 
 def expand_search_queries(question: str, query: str) -> list[str]:
-    """Extra Wikipedia-oriented queries derived from the question shape."""
+    """Wikipedia queries: wiki-friendly normalization, rule query, and raw question.
+
+    No shape-specific or entity-specific query injection — retrieval breadth
+    comes from the question text and search()/enrich dig, not closed templates.
+    """
     out: list[str] = []
     alt = wiki_friendly_query(query)
     if alt:
@@ -95,156 +99,173 @@ def expand_search_queries(question: str, query: str) -> list[str]:
     if query:
         out.append(query)
     q = (question or "").strip()
-    m = re.search(r"(?i)^\s*who wrote (.+?)\??\s*$", q)
-    if m:
-        work = m.group(1).strip().strip('"')
-        if re.fullmatch(r"1984", work):
-            out.insert(0, "Nineteen Eighty-Four")
-            out.insert(0, "George Orwell")
-        out.insert(0, work)
-        out.insert(0, f"{work} (novel)")
-        out.insert(0, f"{work} (play)")
-        out.append(f"{work} author")
-        out.append(f"{work} writer")
-        out.append(f"{work} Orwell")
-        out.append(f"{work} Shakespeare")
-    m = re.search(r"(?i)\blargest (\w+)", q)
-    if m:
-        out.append(f"largest {m.group(1)}")
-    m = re.search(r"(?i)^\s*what is the capital of (.+?)\??\s*$", q)
-    if m:
-        place = m.group(1).strip()
-        out.insert(0, f"{place}")
-        out.insert(0, f"Capital of {place}")
-        out.append(f"capital of {place}")
-    m = re.search(r"(?i)^\s*who founded (.+?)\??\s*$", q)
-    if m:
-        org = m.group(1).strip()
-        out.insert(0, org)
-        if re.fullmatch(r"(?i)tesla", org):
-            out.insert(0, "Tesla, Inc.")
-        # Generic company-title shapes (not a closed org→canonical map).
-        if not re.search(r"(?i)\b(inc\.?|corp\.?|ltd\.?|llc)\b", org):
-            out.append(f"{org}, Inc.")
-            out.append(f"{org} Inc.")
-        out.append(f"{org} founder")
-        out.append(f"{org} co-founder")
-    m = re.search(r"(?i)chemical symbol for (\w+)", q)
-    if m:
-        elem = m.group(1)
-        out.insert(0, elem)
-        out.insert(0, f"{elem} (element)")
-        out.append(f"chemical symbol {elem}")
-    m = re.search(r"(?i)apollo\s*(\d+)", q)
-    if m:
-        out.insert(0, f"Apollo {m.group(1)}")
-        out.append(f"Apollo {m.group(1)} moon landing")
-    m = re.search(r"(?i)what company makes (?:the )?(.+?)\??\s*$", q)
-    if m:
-        product = m.group(1).strip()
-        out.insert(0, product)
-        out.append(f"{product} manufacturer")
-        out.append(f"{product} developed by")
-        out.append(f"{product} (product)")
-        if "playstation" in product.casefold():
-            out.insert(0, "Sony PlayStation")
-    m = re.search(r"(?i)^\s*where (?:was|is) (.+?) born\??\s*$", q)
-    if m:
-        who = m.group(1).strip()
-        out.insert(0, f"{who} born")
-        out.insert(0, who)
-        # Avoid bare "birthplace" queries — they recall unrelated Cooks.
-    m = re.search(r"(?i)^\s*what is the population of (.+?)\??\s*$", q)
-    if m:
-        place = m.group(1).strip()
-        out.insert(0, f"{place} population")
-        out.insert(0, place)
-    m = re.search(
-        r"(?i)^\s*where (?:is|are) (.+?) (?:headquartered|based)\??\s*$|"
-        r"^\s*what (?:is|are) the headquarters of (.+?)\??\s*$",
-        q,
-    )
-    if m:
-        org = (m.group(1) or m.group(2) or "").strip()
-        if org:
-            out.insert(0, org)
-            out.append(f"{org} headquarters")
-            out.append(f"{org} headquartered")
-    m = re.search(r"(?i)^\s*when (?:was|were) (?:the )?(.+?) released\??\s*$", q)
-    if m:
-        thing = m.group(1).strip()
-        out.insert(0, thing)
-        out.append(f"{thing} release")
-        out.append(f"{thing} released")
-    m = re.search(r"(?i)^\s*when (?:was|were) (?:the )?(.+?) published\??\s*$", q)
-    if m:
-        thing = m.group(1).strip()
-        # Novel "1984" → prefer the Wikipedia title for Orwell's book.
-        if re.fullmatch(r"1984", thing):
-            out.insert(0, "Nineteen Eighty-Four")
-        out.insert(0, thing)
-        out.append(f"{thing} published")
-        out.append(f"{thing} publication")
-    m = re.search(r"(?i)^\s*when (?:was|were) (.+?) founded\??\s*$", q)
-    if m:
-        org = m.group(1).strip()
-        out.insert(0, org)
-        if re.fullmatch(r"(?i)tesla", org):
-            out.insert(0, "Tesla, Inc.")
-        if not re.search(r"(?i)\b(inc\.?|corp\.?|ltd\.?|llc)\b", org):
-            out.append(f"{org}, Inc.")
-        out.append(f"{org} founded")
-        out.append(f"{org} founding")
-        out.append(f"{org} established")
-    # Birthday / current office → prefer biography over holiday pages.
-    m = re.search(
-        r"(?i)(?:birthday|birth date|date of birth)\s+of\s+(?:the\s+)?(.+?)\??\s*$",
-        q,
-    )
-    if m:
-        who = m.group(1).strip().rstrip("?.")
-        out.insert(0, who)
-        if re.search(r"(?i)current emperor of japan", who):
-            out.insert(0, "Emperor of Japan")
-            out.append("Emperor of Japan birthday")
-        else:
-            out.insert(0, f"{who} birthday")
-            out.append(f"{who} born")
-    m = re.search(r"(?i)^\s*what is ([A-Z][^?'\"]+?)(?:'s)? birthday\??\s*$", q)
-    if m:
-        who = m.group(1).strip().rstrip("'s").strip()
-        out.insert(0, who)
-        out.insert(0, f"{who} birthday")
-    m = re.search(
-        r"(?i)^\s*who is the current (emperor|prime minister|president) of (.+?)\??\s*$",
-        q,
-    )
-    if m:
-        role, place = m.group(1).lower(), m.group(2).strip()
-        if role == "emperor":
-            out.insert(0, f"Emperor of {place}")
-            out.append(f"{place} emperor")
-        elif role == "prime minister":
-            out.insert(0, f"Prime Minister of {place}")
-            out.append(f"{place} prime minister")
-        elif role == "president":
-            out.insert(0, f"President of {place}")
-            out.append(f"{place} president")
-    m = re.search(r"(?i)^\s*how old (?:is|are) (.+?)\??\s*$", q)
-    if m:
-        who = m.group(1).strip().rstrip("?.")
-        out.insert(0, who)
-        out.insert(0, f"{who} birthday")
-        out.append(f"{who} born")
-    # de-dupe, drop empties
+    if q:
+        out.append(q)
     seen: set[str] = set()
-    uniq = []
+    uniq: list[str] = []
     for item in out:
         key = item.casefold()
         if item and key not in seen:
             seen.add(key)
             uniq.append(item)
     return uniq
+
+
+def _question_content_terms(question: str) -> list[str]:
+    stop = frozenset(
+        """
+        what who when where which how why is are was were the a an of
+        wrote written authored founded makes manufacturer population
+        headquarters released published born birthday
+        """.split()
+    )
+    return [
+        w
+        for w in re.findall(r"[a-z]+", (question or "").casefold())
+        if w not in stop and len(w) > 2
+    ]
+
+
+def looks_title_near_miss(title: str, topic: str) -> bool:
+    """Title looks like a near-miss for topic (e.g. Perugia vs Peru)."""
+    t = (title or "").strip().casefold()
+    top = (topic or "").strip().casefold()
+    if not t or not top or t == top:
+        return False
+    if hit_title_matches_topic(title, topic):
+        return False
+    return t.startswith(top) and len(t) > len(top)
+
+
+def generic_hit_score(question: str, hit: dict) -> float:
+    """Lexical rerank on a small hit set: overlap, topic match, generic noise."""
+    text = f"{hit.get('title', '')} {hit.get('snippet', '')}"
+    title = (hit.get("title") or "").strip()
+    score = float(extract.term_score(question, text))
+    topic = question_topic(question or "")
+
+    if topic:
+        if hit_title_matches_topic(title, topic):
+            score += 6.0
+        elif topic.casefold() in text.casefold():
+            score += 3.0
+        elif looks_title_near_miss(title, topic):
+            score -= 8.0
+        if re.fullmatch(re.escape(topic), title.strip(), flags=re.I):
+            extra = [
+                t
+                for t in _question_content_terms(question or "")
+                if t != topic.casefold()
+            ]
+            if extra:
+                if not all(extract.has_term(t, text) for t in extra):
+                    score -= 5.0
+        if re.search(rf"(?i)\bof\s+{re.escape(topic)}\b", title):
+            score += 4.0
+
+    named_exact = re.match(
+        r"(?i)^\s*(?:how old (?:is|are)|what is) "
+        r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)"
+        r"(?:'s birthday)?\??\s*$",
+        question or "",
+    )
+    if named_exact:
+        who = named_exact.group(1).strip()
+        if re.fullmatch(re.escape(who), title, flags=re.I):
+            score += 12.0
+        elif who.casefold() in title.casefold():
+            score -= 4.0
+
+    for pat in (
+        r"(?i)where (?:was|is) (.+?) born",
+        r"(?i)when (?:was|were) (.+?) born",
+        r"(?i)(?:birthday|birth date|date of birth)\s+of\s+(?:the\s+)?(.+?)\??\s*$",
+        r"(?i)what is ([A-Z][^?'\"]+?)(?:'s)? birthday",
+    ):
+        m = re.search(pat, question or "")
+        if m:
+            who = m.group(1).strip().rstrip("?.").rstrip("'s").strip()
+            if re.fullmatch(re.escape(who), title, flags=re.I):
+                score += 10.0
+            elif who.casefold() not in title.casefold():
+                score -= 8.0
+
+    if re.search(r"(?i)\bwho is\b", question or "") and re.search(
+        r"(?i)\b(ceo|chief executive|president|prime minister|pope|emperor)\b",
+        question or "",
+    ):
+        if looks_role_object_title(title, question=question or ""):
+            score -= 15.0
+        if looks_historical_office(text):
+            score -= 10.0
+        if looks_current_office(text):
+            score += 6.0
+
+    if re.search(r"(?i)\(disambiguation\)", title):
+        score -= 20.0
+    if re.search(r"(?i)\((film|movie|song|album|TV series|restaurant)\)", title):
+        if not re.search(
+            r"(?i)\b(film|movie|song|album|restaurant)\b", question or ""
+        ):
+            score -= 4.0
+    if re.search(r"(?i)emperor.?s birthday|public holiday|tennō tanjōbi", text):
+        score -= 10.0
+
+    snip = (hit.get("snippet") or "").strip()
+    if snip.startswith("Because of this") or (snip and snip[0].islower()):
+        score -= 6.0
+
+    acr_m = re.search(r"(?i)^\s*what is\s+(\S+?)\??\s*$", question or "")
+    if acr_m:
+        ent = acr_m.group(1).strip()
+        if title.strip().casefold() == ent.casefold():
+            score += 8.0
+        if re.search(
+            rf"(?i)\b{re.escape(ent)}\b.{{0,80}}\b(is an?|is the|stands for)\b",
+            text,
+        ):
+            score += 4.0
+
+    for m in re.finditer(
+        r"\b([A-Z][A-Za-z0-9]+(?:\s+[A-Z0-9][A-Za-z0-9]+)+)\b", question or ""
+    ):
+        phrase = m.group(1).strip()
+        if re.fullmatch(re.escape(phrase), title.strip(), flags=re.I):
+            score += 8.0
+
+    if topic and hit_title_matches_topic(title, topic):
+        if not re.fullmatch(re.escape(topic), title.strip(), flags=re.I):
+            if not title.strip().casefold().startswith(topic.casefold()):
+                score -= 4.0
+
+    if re.search(r"(?i)\bwho is\b", question or "") and re.search(
+        r"(?i)\b(ceo|chief executive|president|prime minister)\b", question or ""
+    ):
+        if topic and re.fullmatch(re.escape(topic), title.strip(), flags=re.I):
+            if not re.search(
+                r"(?i)\b(ceo|chief executive|president|prime minister)\b", text
+            ):
+                score -= 8.0
+        elif topic and topic.casefold() in text.casefold() and re.search(
+            r"(?i)\b(ceo|chief executive|president|prime minister)\b", text
+        ):
+            if has_person_name(text) or re.search(
+                r"\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\b", text
+            ):
+                score += 6.0
+
+    if re.search(r"(?i)\b(what company makes|manufacturer)\b", question or "") and topic:
+        if re.fullmatch(re.escape(topic), title.strip(), flags=re.I):
+            if not re.search(
+                r"(?i)\b(developed|manufactured|made|created)\s+by\b", text
+            ):
+                score -= 4.0
+        elif topic.casefold() in text.casefold() and re.search(
+            r"(?i)\b(developed|manufactured|made|created)\s+by\b", text
+        ):
+            score += 6.0
+
+    return score
 
 
 def looks_like_fragment(snippet: str) -> bool:
@@ -1103,522 +1124,7 @@ def rank_hits(question: str, hits: list[dict], k: int = 4) -> list[dict]:
 def rank_hits_scored(
     question: str, hits: list[dict], k: int = 4
 ) -> list[tuple[float, dict]]:
-    companyish = bool(re.search(
-        r"(?i)\b(company|ceo|cfo|inc\.?|corp|founded|holding)\b", question or ""
-    ))
-    want_ceo = bool(re.search(r"(?i)\bceo\b", question or ""))
-    want_author = bool(re.search(r"(?i)\b(who wrote|author)\b", question or ""))
-    want_pm = bool(re.search(r"(?i)\bprime minister\b", question or ""))
-    present_office = bool(re.search(r"(?i)\bwho is\b", question or ""))
-    # Stronger: exact "How old is Name?" / "What is Name's birthday?"
-    named_exact = re.match(
-        r"(?i)^\s*(?:how old (?:is|are)|what is) "
-        r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)"
-        r"(?:'s birthday)?\??\s*$",
-        question or "",
-    )
-    topic = question_topic(question or "")
-    want_maker = bool(re.search(
-        r"(?i)\b(what company makes|manufacturer|makes the)\b", question or ""
-    ))
-    scored = []
-    for h in hits:
-        text = f"{h.get('title', '')} {h.get('snippet', '')}"
-        score = float(extract.term_score(question, text))
-        title = h.get("title") or ""
-        score += lexical_relation_boost(question or "", topic, title, text)
-        if topic:
-            if hit_title_matches_topic(title, topic):
-                score += 6.0
-            elif (
-                want_ceo
-                and has_person_name(title)
-                and topic.casefold() in text.casefold()
-            ):
-                # Person page about the asked company — not a topic near-miss.
-                score += 4.0
-            elif (
-                want_maker
-                and topic.casefold() in text.casefold()
-                and re.search(
-                    r"(?i)\b(developed|manufactured|made|created)\s+by\b",
-                    text,
-                )
-            ):
-                # Maker page that attests the product — not a topic near-miss.
-                score += 4.0
-            else:
-                # Near-miss titles (Perugia≈Peru, novel≠play) get pushed down.
-                score -= 8.0
-            if re.search(r"(?i)\bwho founded\b", question or ""):
-                if re.search(r"(?i)\b(inc\.?|corp\.?|company|ltd)\b", title) or re.fullmatch(
-                    re.escape(topic), title.strip(), flags=re.I
-                ):
-                    score += 10.0
-                if has_person_name(title) and not hit_title_matches_topic(title, topic):
-                    score -= 6.0
-            if re.search(r"(?i)\bwho wrote\b", question or ""):
-                if re.search(r"(?i)\(play\)", title):
-                    score += 8.0
-                if re.search(r"(?i)\(novel\)", title) and not re.search(
-                    r"(?i)\bnovel\b", question or ""
-                ):
-                    score -= 10.0
-                if re.fullmatch(re.escape(topic), title.strip(), flags=re.I):
-                    score += 12.0
-        if named_exact:
-            who = named_exact.group(1).strip()
-            if re.fullmatch(re.escape(who), title.strip(), flags=re.I):
-                score += 20.0
-            elif who.casefold() in title.casefold() and not re.fullmatch(
-                re.escape(who), title.strip(), flags=re.I
-            ):
-                score -= 4.0
-        if companyish and re.search(r"(?i)\b(Inc\.?|Corp\.?|Company)\b", title):
-            score += 2.0
-        if companyish and re.search(r"(?i)^(Apple|Alphabet)$", title.strip()):
-            score -= 1.5
-        if want_ceo and re.search(r"(?i)\b(ceo|chief executive)\b", text):
-            score += 3.0
-            if looks_role_object_title(title, question=question or ""):
-                score -= 20.0
-            place_m = re.search(
-                r"(?i)\b(?:ceo|chief executive(?: officer)?)\s+of\s+(.+?)\??\s*$",
-                question or "",
-            )
-            company = (place_m.group(1).strip() if place_m else "")
-            company = re.sub(r"(?i)^(the|current)\s+", "", company).strip()
-            if company and company.casefold() in text.casefold():
-                if has_person_name(text) and re.search(
-                    r"(?i)\b(chairman and )?(chief executive|ceo)\b.{0,40}\b"
-                    + re.escape(company),
-                    text,
-                ):
-                    score += 8.0
-                elif re.search(
-                    r"(?i)\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\b.{0,40}"
-                    r"\b(chairman and )?(chief executive|ceo)\b|"
-                    r"\b(chairman and )?(chief executive|ceo)\b.{0,40}"
-                    r"\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\b",
-                    text,
-                ) and re.search(rf"(?i)\b{re.escape(company)}\b", text):
-                    # Corp titles contain "Inc." which blanks has_person_name(text).
-                    score += 8.0
-            snip = h.get("snippet") or ""
-            personish = (
-                has_person_name(title)
-                or has_person_name(snip)
-                or bool(
-                    re.search(r"\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\b", snip)
-                    and re.search(r"(?i)\b(ceo|chief executive)\b", snip)
-                )
-            )
-            if not personish:
-                # Bare company page without a named officer.
-                score -= 10.0
-            if re.search(
-                r"(?i)\b(previously served|former ceo|until 201[0-9]|"
-                r"watches?\s*&\s*jewelry|tag heuer)\b",
-                text,
-            ):
-                score -= 6.0
-            if present_office:
-                if looks_historical_office(text):
-                    score -= 16.0
-                if looks_current_office(text):
-                    score += 8.0
-        if topic and re.search(r"(?i)\bcapital of\b", question or ""):
-            states_capital = bool(
-                re.search(
-                    rf"(?i)\bis the capital of\s+{re.escape(topic)}\b|"
-                    rf"\bcapital of\s+{re.escape(topic)}\s+is\b|"
-                    r"\bis the capital\b",
-                    text,
-                )
-            )
-            capital_title = bool(
-                re.search(
-                    rf"(?i)^capital of\s+{re.escape(topic)}\b",
-                    title.strip(),
-                )
-            )
-            if re.search(r"(?i)^capital of\b", title.strip()):
-                if capital_title and states_capital:
-                    score += 24.0
-                elif capital_title or (
-                    topic.casefold() in text.casefold() and states_capital
-                ):
-                    score += 18.0
-                elif re.search(r"(?i)\b([A-Z][a-z]+)\s+is the capital\b", text):
-                    score += 4.0
-                else:
-                    score -= 12.0
-            if re.fullmatch(re.escape(topic), title.strip(), flags=re.I):
-                # Bare country/org page: only boost when it states the capital.
-                if states_capital:
-                    score += 10.0
-                else:
-                    score -= 6.0
-            # City (or other) page that asserts it is the capital of the topic.
-            if re.search(
-                rf"(?i)\b{re.escape(title.strip())}\s+is the capital of\s+"
-                rf"{re.escape(topic)}\b",
-                text,
-            ):
-                score += 22.0
-            elif (
-                states_capital
-                and topic.casefold() in text.casefold()
-                and not re.fullmatch(re.escape(topic), title.strip(), flags=re.I)
-                and not re.search(r"(?i)^capital of\b", title.strip())
-            ):
-                score += 8.0
-        want_president = bool(re.search(r"(?i)\bpresident\b", question or ""))
-        if want_president:
-            if looks_role_object_title(title, question=question or ""):
-                score -= 20.0
-            place_m = re.search(r"(?i)\bpresident of (.+?)\??\s*$", question or "")
-            place = (place_m.group(1).strip() if place_m else "")
-            if (
-                place
-                and place.casefold() not in text.casefold()
-                and not has_person_name(title)
-                and not re.search(r"(?i)^presidency of\b", title.strip())
-            ):
-                score -= 6.0
-            if has_person_name(text) and re.search(
-                r"(?i)\b(president of|served as president|has served as president|"
-                r"incumbent president)\b",
-                text,
-            ):
-                score += 6.0
-            if re.search(r"(?i)^presidency of\b", title.strip()):
-                score += 4.0
-                # Present-tense "who is" → prefer current-looking tenure cues.
-                if re.search(r"(?i)\bwho is\b", question or ""):
-                    if re.search(
-                        r"(?i)\b(since 201[789]|since 202\d|has served as president|"
-                        r"incumbent)\b",
-                        text,
-                    ):
-                        score += 8.0
-                    elif re.search(
-                        r"(?i)\b(de gaulle|pompidou|giscard|mitterrand|chirac|sarkozy|hollande|"
-                        r"1959|196|197|198|199|2007|2012)\b",
-                        text,
-                    ):
-                        score -= 6.0
-            if re.search(r"(?i)^president of\b", title.strip()) and not has_person_name(text):
-                score -= 3.0
-            if re.search(r"(?i)\b(brigitte|wife|spouse|seminary|princeton|fifa)\b", text):
-                score -= 8.0
-            if re.search(r"(?i)^list of presidents\b", title.strip()):
-                score -= 3.0
-            if re.search(r"(?i)^presidency of charles\b", title.strip()) and re.search(
-                r"(?i)\bwho is\b", question or ""
-            ):
-                score -= 8.0
-            if present_office:
-                if looks_historical_office(text):
-                    score -= 14.0
-                if looks_current_office(text):
-                    score += 6.0
-        if want_pm:
-            if looks_role_object_title(title, question=question or ""):
-                score -= 20.0
-            place_m = re.search(r"(?i)\bprime minister of (.+?)\??\s*$", question or "")
-            place = (place_m.group(1).strip() if place_m else "")
-            if (
-                place
-                and place.casefold() not in text.casefold()
-                and not has_person_name(title)
-                and not re.search(r"(?i)^premiership of\b", title.strip())
-            ):
-                score -= 6.0
-            if has_person_name(text) and re.search(
-                r"(?i)\b(prime minister of|served as prime minister|"
-                r"has served as prime minister|incumbent prime minister)\b",
-                text,
-            ):
-                score += 6.0
-            if re.search(r"(?i)^premiership of\b", title.strip()):
-                score += 8.0
-                if re.search(r"(?i)\bwho is\b", question or ""):
-                    if re.search(r"(?i)\b(since 202[0-9]|since 201[5-9])\b", text):
-                        score += 6.0
-            if has_person_name(title) and re.search(r"(?i)\bprime minister\b", text):
-                score += 10.0
-            if (
-                re.search(r"(?i)^prime minister of\b", title.strip())
-                and not has_person_name(text)
-            ):
-                score -= 3.0
-            if re.search(r"(?i)^list of (prime ministers|uk prime)\b", title.strip()):
-                score -= 3.0
-            if re.search(
-                r"(?i)^(list of|spouse of|deputy)\b.*\bprime minister", title.strip()
-            ):
-                score -= 8.0
-            if re.search(r"(?i)^prime ministers of\b", title.strip()):
-                score -= 5.0
-            if re.search(r"(?i)\bwho is\b", question or ""):
-                if re.search(r"(?i)\bformer (?:prime minister|pm)\b", text):
-                    score -= 10.0
-                since_years = [
-                    int(y) for y in re.findall(r"(?i)\bsince\s+(\d{4})\b", text)
-                ]
-                if since_years and has_person_name(title):
-                    # Prefer the more recent incumbency when several PMs match.
-                    score += min(max(since_years) - 2016, 12) * 0.75
-            if present_office:
-                if looks_historical_office(text):
-                    score -= 14.0
-                if looks_current_office(text):
-                    score += 6.0
-        # Object questions (car / residence) must not lose to premiership bios.
-        if re.search(r"(?i)\b(official\s+)?(car|residence|vehicle)\b", question or ""):
-            if re.search(r"(?i)\b(car|residence|vehicle)\b", title):
-                score += 18.0
-            if re.search(r"(?i)^(premiership|presidency)\s+of\b", title.strip()):
-                score -= 12.0
-        # "What is NASA?" — exact acronym title + definitional lede.
-        acr_m = re.search(r"(?i)^\s*what is\s+([A-Z]{2,8})\??\s*$", question or "")
-        if acr_m:
-            acr = acr_m.group(1)
-            if title.strip().casefold() == acr.casefold():
-                score += 10.0
-            elif title.strip().upper().startswith(acr.upper() + " "):
-                score -= 2.0
-            if re.search(
-                rf"(?i)\b{re.escape(acr)}\b.{{0,80}}\b("
-                r"is an?|is the|stands for)\b",
-                text,
-            ):
-                score += 4.0
-            if acr.upper() == "NASA" and re.search(
-                r"(?i)national aeronautics and space administration", text
-            ):
-                score += 3.0
-        if re.search(r"(?i)\((film|movie|song|album|TV series|restaurant)\)", title):
-            score -= 2.5
-        if re.search(r"(?i)^current pope\b", title.strip()):
-            score -= 12.0
-        if re.search(r"(?i)\bpope\b", question or "") and re.search(
-            r"(?i)^pope\s+\S+", title.strip()
-        ):
-            score += 14.0
-        if re.search(r"(?i)\btesla\b", question or "") and re.search(
-            r"(?i)^tesla,? inc", title.strip()
-        ):
-            score += 14.0
-        if re.search(r"(?i)\btesla\b", question or "") and re.search(
-            r"(?i)^tesla energy\b", title.strip()
-        ):
-            score -= 8.0
-        if re.search(r"(?i)\b(hamburger|restaurant)\b", title):
-            score -= 5.0
-        if want_author and re.search(
-            r"(?i)\b(shakespeare|author|play|tragedy|comedy)\b", text
-        ):
-            score += 3.0
-        if want_author and re.search(
-            r"(?i)\b(restaurant|hamburger|film|movie)\b", text
-        ):
-            score -= 5.0
-        if want_author and re.search(r"(?i)\(play\)", title):
-            score -= 8.0
-        if want_author and re.search(r"(?i)\(novel\)", title):
-            score += 8.0
-        if want_author and re.search(r"(?i)^nineteen eighty-four\b", title.strip()):
-            score += 14.0
-        if want_author and re.search(r"(?i)^george orwell\b", title.strip()):
-            score += 10.0
-        for m in re.finditer(r"(?i)\b(apollo)\s+(\d+)\b", question or ""):
-            label = f"{m.group(1)} {m.group(2)}"
-            if re.fullmatch(rf"(?i){re.escape(label)}", title.strip()):
-                score += 12.0
-            elif re.search(rf"(?i)^{re.escape(label)}\b", title.strip()):
-                score += 4.0
-                if re.search(
-                    r"(?i)\b(anniversary|commemorative|coins|missing tapes|"
-                    r"popular culture|in popular)\b",
-                    title,
-                ):
-                    score -= 14.0
-            elif re.search(rf"(?i)\b{re.escape(m.group(1))}\s+\d+\b", title) and not re.search(
-                rf"(?i)\b{re.escape(label)}\b", title
-            ):
-                score -= 6.0
-        if re.search(r"(?i)\blargest\b", question or "") and re.search(
-            r"(?i)\b(pacific|atlantic|indian|arctic|southern)\b", text
-        ):
-            score += 3.0
-        if re.search(r"(?i)\bcapital\b", question or "") and re.search(
-            r"(?i)\bcapital\b", text
-        ):
-            score += 2.0
-        if re.search(r"(?i)\bcapital of france\b", question or "") and re.search(
-            r"(?i)\bparis\b", text
-        ):
-            score += 3.0
-        if re.search(r"(?i)\bwho founded\b", question or "") and re.search(
-            r"(?i)\b(bill gates|paul allen|founder|ibuka|morita)\b", text
-        ):
-            score += 3.0
-        if re.search(r"(?i)\bwho founded\b", question or "") and re.search(
-            r"(?i)\bsony\b", question or ""
-        ):
-            if re.search(r"(?i)\b(ibuka|morita)\b", text):
-                score += 8.0
-            if re.fullmatch(r"(?i)sony", title.strip()):
-                score += 4.0
-        if re.search(r"(?i)\bwhen\b", question or "") and re.search(
-            r"(?i)\bfounded\b", question or ""
-        ):
-            if re.search(r"(?i)\bfounded in\s+\d{4}\b", text):
-                score += 8.0
-            elif re.search(r"(?i)\bfounded\b", text) and re.search(r"\b(19|20)\d{2}\b", text):
-                score += 4.0
-            if re.search(r"(?i)\bsony\b", question or ""):
-                if re.fullmatch(r"(?i)sony", title.strip()):
-                    score += 10.0
-                if re.search(r"(?i)\bfounded.{0,40}\b1946\b", text):
-                    score += 6.0
-            if re.search(r"(?i)\b(japan|copilot|excel|windows)\b", title) and not re.fullmatch(
-                r"(?i)microsoft", title.strip()
-            ):
-                score -= 6.0
-        if re.search(r"(?i)\(disambiguation\)", title):
-            score -= 20.0
-        if re.search(r"(?i)\bborn\b", question or "") and re.search(
-            r"(?i)\bwhere\b", question or ""
-        ):
-            who = re.search(r"(?i)where (?:was|is) (.+?) born", question or "")
-            who_name = who.group(1).strip() if who else ""
-            if who_name and re.fullmatch(
-                re.escape(who_name), title.strip(), flags=re.I
-            ):
-                score += 12.0
-            elif who_name and who_name.casefold() not in title.casefold():
-                score -= 15.0
-            elif who_name and re.match(
-                rf"(?i)^{re.escape(who_name)}\s*\(", title.strip()
-            ):
-                score -= 8.0
-            if re.search(r"(?i)\bborn (?:in|at)\s+[A-Z]", text):
-                # Only credit birthplace prose on the matching biography.
-                if who_name and re.fullmatch(
-                    re.escape(who_name), title.strip(), flags=re.I
-                ):
-                    score += 8.0
-                else:
-                    score += 1.0
-        if re.search(r"(?i)\bborn\b", question or "") and re.search(
-            r"(?i)\bwhen\b", question or ""
-        ):
-            who = re.search(r"(?i)when (?:was|were) (.+?) born", question or "")
-            who_name = who.group(1).strip() if who else ""
-            if who_name and re.fullmatch(
-                re.escape(who_name), title.strip(), flags=re.I
-            ):
-                score += 16.0
-            elif who_name and who_name.casefold() not in title.casefold():
-                score -= 14.0
-            elif who_name and re.match(
-                rf"(?i)^{re.escape(who_name)}\s*\(", title.strip()
-            ):
-                score -= 8.0
-            # Prefer subject biography over mother/relative pages.
-            if who_name and re.search(
-                rf"(?i)\b(mother|father|wife|husband|daughter|son)\b.*{re.escape(who_name)}|{re.escape(who_name)}.*(mother|father)",
-                title + " " + text,
-            ):
-                score -= 12.0
-        if re.search(r"(?i)\bpopulation\b", question or ""):
-            if re.search(r"(?i)\b\d[\d.,]*\s*(?:million|billion)", text):
-                score += 8.0
-            elif re.search(r"(?i)\bpopulation\b", text) and re.search(r"\d", text):
-                score += 3.0
-            if re.search(r"(?i)\bfrance\b", question or ""):
-                if re.fullmatch(r"(?i)france", title.strip()):
-                    score += 10.0
-                if re.search(r"(?i)\bcanada\b", title) and not re.search(
-                    r"(?i)\bfrance\b", title
-                ):
-                    score -= 12.0
-        if re.search(r"(?i)\b(birthday|birth date|date of birth)\b", question or ""):
-            who = None
-            m = re.search(
-                r"(?i)(?:birthday|birth date|date of birth)\s+of\s+(?:the\s+)?(.+?)\??\s*$",
-                question or "",
-            )
-            if m:
-                who = m.group(1).strip().rstrip("?.")
-            else:
-                m = re.search(
-                    r"(?i)what is ([A-Z][^?'\"]+?)(?:'s)? birthday", question or ""
-                )
-                if m:
-                    who = m.group(1).strip().rstrip("'s").strip()
-            if who and re.search(r"(?i)current emperor of japan", who):
-                who = wiki_incumbent_from_page("Emperor of Japan") or who
-            if re.search(r"(?i)\(born\s+\d|\bborn\s+\d|\bborn on\b", text):
-                score += 4.0
-            if re.search(
-                r"(?i)emperor.?s birthday|public holiday|tennō tanjōbi", title + " " + text
-            ):
-                score -= 12.0
-            if who:
-                if re.fullmatch(re.escape(who), title.strip(), flags=re.I):
-                    score += 16.0
-                elif who.casefold() in title.casefold() and "(" in title:
-                    score -= 10.0
-                elif who.casefold() not in title.casefold():
-                    score -= 14.0
-        if re.search(r"(?i)\bwho is the current emperor of japan\b", question or ""):
-            if re.search(r"(?i)^emperor of japan\b", title.strip()):
-                score += 10.0
-            elif re.search(r"(?i)emperor.?s birthday|public holiday", title):
-                score -= 12.0
-        if re.search(r"(?i)\bchemical symbol\b", question or ""):
-            if re.search(r"(?i)\b(symbol|element)\b", text):
-                score += 2.0
-            if re.search(r"(?i)\b(chemical )?symbol (is |of )?[A-Z][a-z]?\b", text):
-                score += 4.0
-            if re.search(r"(?i)\batomic number\b", text) and not re.search(
-                r"(?i)\bsymbol\b", text
-            ):
-                score -= 3.0
-        if want_maker:
-            if re.search(
-                r"(?i)\b(sony|nintendo|microsoft|developed by|manufactured by)\b", text
-            ):
-                score += 5.0
-            if re.search(r"(?i)^sony\b", title.strip()):
-                score += 6.0
-            if re.search(r"(?i)\bplaystation\b", question or "") and re.search(
-                r"(?i)\bsony\b", text
-            ):
-                score += 4.0
-        if re.search(r"(?i)\bboiling point\b", question or ""):
-            snip = (h.get("snippet") or "").strip()
-            if re.search(r"(?i)\bboiling point of water is\b", text):
-                score += 6.0
-            elif re.search(r"(?i)\bwater boils at\b|\bboils at\b", text):
-                score += 3.0
-            if re.search(r"(?i)^because of this\b", snip):
-                score -= 6.0
-            if snip[:1].islower():
-                score -= 4.0
-            if re.search(r"(?i)\((film|movie)\)", title):
-                score -= 5.0
-        if re.search(r"(?i)^family of\b", title.strip()):
-            score -= 2.0
-        if title.strip().casefold() == "microsoft" and re.search(
-            r"(?i)\bfounded\b", question or ""
-        ):
-            score += 2.0
-        scored.append((score, h))
+    scored = [(generic_hit_score(question, h), h) for h in hits]
     scored.sort(key=lambda x: (-x[0], hits.index(x[1]) if x[1] in hits else 0))
     return scored[:k]
 
@@ -2155,83 +1661,17 @@ def search(query: str, limit: int = 5, *, question: str = "") -> list[dict]:
                 seen.add(h["url"])
                 hits.append(h)
 
-    want_office = bool(re.search(
-        r"(?i)\b(ceo|chief executive|president|prime minister|emperor|pope)\b",
-        question or query or "",
-    ))
-    if want_office:
-        entity = wiki_friendly_query(query) or ROLE_NOISE.sub(" ", query or "").strip()
-        entity = re.sub(r"\s+", " ", entity).strip()
-        if entity:
-            if re.search(r"(?i)\bpope\b", question or query or ""):
-                _add(search_wikipedia("Pope", limit=limit))
-                name = wiki_incumbent_from_page("Pope")
-                if name:
-                    _add(search_wikipedia(name, limit=limit))
-                    _add(search_wikipedia_text(name, limit=limit))
-                    # Drop the "Pope " prefix for biography search.
-                    short = re.sub(r"(?i)^pope\s+", "", name).strip()
-                    if short and short.casefold() != name.casefold():
-                        _add(search_wikipedia(short, limit=limit))
-            if re.search(r"(?i)\bemperor\b", question or query or ""):
-                _add(search_wikipedia("Emperor of Japan", limit=limit))
-                _add(search_wikipedia_text("Emperor of Japan", limit=limit))
-                name = wiki_incumbent_from_page("Emperor of Japan")
-                if name:
-                    _add(search_wikipedia(name, limit=limit))
-                    _add(search_wikipedia_text(name, limit=limit))
-            if re.search(r"(?i)\bpresident\b", question or query or ""):
-                _add(search_wikipedia_text(f"{entity} president", limit=limit))
-                _add(search_wikipedia(f"President of {entity}", limit=limit))
-                _add(search_wikipedia_text(f"President of {entity}", limit=limit))
-                # Office-page summaries omit incumbents; these queries surface the person page.
-                _add(search_wikipedia_text(f"Incumbent president {entity}", limit=limit))
-                _add(search_wikipedia_text(f"Presidency of {entity}", limit=limit))
-                _add(search_wikipedia_text(f"President of {entity} since", limit=limit))
-                for office_title in (
-                    f"President of {entity}",
-                    f"President of the {entity}",
-                ):
-                    name = wiki_incumbent_from_page(office_title)
-                    if name:
-                        _add(search_wikipedia(name, limit=limit))
-                        _add(search_wikipedia_text(name, limit=limit))
-            if re.search(r"(?i)\b(ceo|chief executive)\b", question or query or ""):
-                _add(search_wikipedia_text(f"{entity} chief executive", limit=limit))
-                _add(search_wikipedia_text(f"{entity} CEO", limit=limit))
-            if re.search(r"(?i)\bprime minister\b", question or query or ""):
-                _add(search_wikipedia(f"Prime Minister of {entity}", limit=limit))
-                _add(search_wikipedia_text(f"Prime Minister of {entity}", limit=limit))
-                _add(search_wikipedia(f"Prime Minister of the {entity}", limit=limit))
-                _add(search_wikipedia_text(
-                    f"Incumbent prime minister {entity}", limit=limit
-                ))
-                _add(search_wikipedia_text(
-                    f"Prime Minister of {entity} since", limit=limit
-                ))
-                _add(search_wikipedia_text(f"Premiership of {entity}", limit=limit))
-                for office_title in (
-                    f"Prime Minister of the {entity}",
-                    f"Prime Minister of {entity}",
-                ):
-                    name = wiki_incumbent_from_page(office_title)
-                    if name:
-                        _add(search_wikipedia(name, limit=limit))
-                        _add(search_wikipedia_text(name, limit=limit))
-                        _add(search_wikipedia(f"Premiership of {name}", limit=limit))
-    if re.search(r"(?i)\bcapital of\b", question or query or ""):
-        place_m = re.search(
-            r"(?i)capital of\s+(?:the\s+)?(.+?)\??\s*$", question or query or ""
-        )
-        place = (place_m.group(1).strip() if place_m else "").rstrip("?.")
-        if place:
-            _add(search_wikipedia(f"Capital of {place}", limit=limit))
-            _add(search_wikipedia_text(f"capital of {place}", limit=limit))
+    ot = office_page_title(question) if question else None
+    if ot:
+        _add(search_wikipedia(ot, limit=limit))
+        _add(search_wikipedia_text(ot, limit=limit))
+        name = wiki_incumbent_from_page(ot)
+        if name:
+            _add(search_wikipedia(name, limit=limit))
+            _add(search_wikipedia_text(name, limit=limit))
     for q in queries:
         _add(search_wikipedia(q, limit=limit))
         _add(search_wikipedia_text(q, limit=limit))
-    if question and question.strip() not in queries:
-        _add(search_wikipedia_text(question.strip(), limit=limit))
     if len(hits) < 2:
         _add(search_duckduckgo(query, limit=limit))
     return hits[: max(limit * 3, 15)]
@@ -2550,57 +1990,6 @@ def relation_kind(question: str) -> str | None:
     if re.search(r"(?i)\b(what company makes|manufacturer|makes the)\b", q):
         return "makes"
     return None
-
-
-def lexical_relation_boost(
-    question: str, topic: str | None, title: str, text: str
-) -> float:
-    """Boost hits where topic and relation cues co-occur (no entity name table).
-
-    Intended as the durable rank path; closed entity literals elsewhere may
-    still add extra score until peeled in a later pass.
-    """
-    rel = relation_kind(question)
-    if rel not in ("founded", "wrote", "makes"):
-        return 0.0
-    bonus = 0.0
-    title_ok = bool(topic and hit_title_matches_topic(title, topic))
-    topic_in = bool(topic and topic.casefold() in (text or "").casefold())
-    if rel == "founded":
-        cue = _RELATION_CUES["founded"]
-        if cue.search(text or ""):
-            if title_ok:
-                bonus += 10.0
-            elif topic_in:
-                bonus += 6.0
-            if re.search(r"(?i)\bfounded by\b|\bco-?founded by\b", text or ""):
-                bonus += 4.0
-    elif rel == "wrote":
-        cue = _RELATION_CUES["wrote"]
-        if re.search(r"(?i)\b(restaurant|hamburger)\b", text or ""):
-            bonus -= 8.0
-        elif cue.search(text or ""):
-            if title_ok and not re.search(
-                r"(?i)\((film|movie|song|album|TV series|restaurant)\)",
-                title or "",
-            ):
-                bonus += 10.0
-            elif topic_in:
-                bonus += 6.0
-    elif rel == "makes":
-        if re.search(
-            r"(?i)\b(developed|manufactured|made|created|produced)\s+by\b",
-            text or "",
-        ):
-            bonus += 10.0
-            if topic_in:
-                bonus += 4.0
-        elif title_ok and not re.search(
-            r"(?i)\b(developed|manufactured|made)\s+by\b", text or ""
-        ):
-            # Bare product page without a maker attestation.
-            bonus -= 2.0
-    return bonus
 
 
 def person_attested(core: str, document: str) -> bool:

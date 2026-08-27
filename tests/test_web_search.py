@@ -463,20 +463,22 @@ class TestExtraFailures(unittest.TestCase):
         self.assertIn("National Aeronautics", core or "")
 
     def test_expand_hamlet_and_apollo(self):
-        qs = ws.expand_search_queries("Who wrote Hamlet?", "wrote Hamlet")
-        self.assertTrue(any("shakespeare" in q.lower() or "(play)" in q.lower() for q in qs))
+        qs = ws.expand_search_queries("Who wrote Hamlet?", "Who wrote Hamlet?")
+        self.assertIn("Who wrote Hamlet?", qs)
+        self.assertNotIn("Shakespeare", " ".join(qs))
         qs2 = ws.expand_search_queries(
-            "When did the Apollo 11 moon landing happen?", "Apollo 11 moon landing"
+            "When did the Apollo 11 moon landing happen?",
+            "When did the Apollo 11 moon landing happen?",
         )
-        self.assertTrue(any("apollo 11" in q.lower() for q in qs2))
+        self.assertIn("When did the Apollo 11 moon landing happen?", qs2)
 
 
 class TestQueryExpand(unittest.TestCase):
-    def test_who_wrote_adds_work_title(self):
+    def test_who_wrote_includes_question(self):
         qs = ws.expand_search_queries(
-            "Who wrote Romeo and Juliet?", "wrote Romeo and Juliet")
-        self.assertIn("Romeo and Juliet", qs)
-        self.assertTrue(any("author" in q.lower() for q in qs))
+            "Who wrote Romeo and Juliet?", "Who wrote Romeo and Juliet?"
+        )
+        self.assertIn("Who wrote Romeo and Juliet?", qs)
 
 
 class TestEnrichAndRank(unittest.TestCase):

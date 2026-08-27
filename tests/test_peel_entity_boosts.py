@@ -58,11 +58,10 @@ class TestNoNamedIncumbentBoosts(unittest.TestCase):
     def test_expand_emperor_uses_office_not_hardcoded_name(self):
         qs = ws.expand_search_queries(
             "Who is the current emperor of Japan?",
-            "current emperor of Japan",
+            "Who is the current emperor of Japan?",
         )
         joined = " | ".join(qs).casefold()
-        self.assertIn("emperor of japan", joined)
-        # Must not inject a closed personal name as the only lead.
+        self.assertIn("current emperor of japan", joined)
         self.assertFalse(
             any(q.strip().casefold() == "naruhito" for q in qs),
             qs,
@@ -77,9 +76,9 @@ class TestNoNamedIncumbentBoosts(unittest.TestCase):
                 "url": "u1",
             },
             {
-                "title": "Fictional Person",
+                "title": "Example Officer",
                 "snippet": (
-                    "Fictional Person is the chief executive officer of Apple."
+                    "Example Officer is the chief executive officer of Apple."
                 ),
                 "url": "u2",
             },
@@ -90,8 +89,7 @@ class TestNoNamedIncumbentBoosts(unittest.TestCase):
             },
         ]
         top = ws.rank_hits(q, hits, k=1)[0]
-        # Lexical CEO attestation beats a bare famous-name title with no role.
-        self.assertEqual(top["title"], "Fictional Person")
+        self.assertEqual(top["title"], "Example Officer")
 
     def test_president_rank_without_macron_name_boost(self):
         q = "Who is the president of France?"

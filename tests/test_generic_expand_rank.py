@@ -1,4 +1,4 @@
-"""Generic typed expand + lexical rank (alongside legacy entity literals)."""
+"""Minimal expand + generic lexical rerank (no shape templates)."""
 
 from __future__ import annotations
 
@@ -7,75 +7,62 @@ import unittest
 from deku import web_search as ws
 
 
-class TestGenericExpandShapes(unittest.TestCase):
-    def test_who_wrote_adds_role_queries_not_only_authors(self):
-        qs = ws.expand_search_queries("Who wrote Zembla?", "wrote Zembla")
-        joined = " | ".join(qs).casefold()
-        self.assertIn("zembla", joined)
-        self.assertIn("zembla author", joined)
-        self.assertIn("zembla writer", joined)
-        self.assertTrue(
-            any("(novel)" in q.casefold() or "(play)" in q.casefold() for q in qs),
-            qs,
-        )
-
-    def test_who_founded_adds_inc_and_founder_shapes(self):
-        qs = ws.expand_search_queries("Who founded AcmeWidgets?", "AcmeWidgets")
-        joined = " | ".join(qs).casefold()
-        self.assertIn("acmewidgets", joined)
-        self.assertIn("acmewidgets founder", joined)
-        self.assertTrue(
-            any("inc" in q.casefold() for q in qs),
-            qs,
-        )
-
-    def test_makes_product_adds_manufacturer_shapes(self):
+class TestMinimalExpand(unittest.TestCase):
+    def test_no_shape_or_entity_injection(self):
         qs = ws.expand_search_queries(
-            "What company makes the WidgetPhone?",
-            "WidgetPhone manufacturer",
+            "Who wrote Hamlet?", "Who wrote Hamlet?"
         )
+        self.assertIn("Who wrote Hamlet?", qs)
         joined = " | ".join(qs).casefold()
-        self.assertIn("widgetphone", joined)
-        self.assertIn("manufacturer", joined)
-        self.assertIn("developed by", joined)
+        self.assertNotIn("shakespeare", joined)
+        self.assertNotIn("orwell", joined)
+        self.assertNotIn("author", joined)
+
+    def test_includes_wiki_friendly_query(self):
+        qs = ws.expand_search_queries(
+            "Who is the CEO of Apple?", "CEO Apple"
+        )
+        self.assertTrue(len(qs) >= 2)
 
 
-class TestLexicalRelationRank(unittest.TestCase):
-    def test_founded_prefers_org_page_with_founder_language(self):
-        q = "Who founded AcmeWidgets?"
+class TestGenericLexicalRank(unittest.TestCase):
+    def test_topic_match_beats_near_miss(self):
+        q = "What is the capital of Peru?"
         hits = [
             {
-                "title": "Unrelated Person",
-                "snippet": "Bill Gates is mentioned in passing.",
+                "title": "Perugia",
+                "snippet": "Perugia is a city in Italy.",
                 "url": "u1",
             },
             {
-                "title": "AcmeWidgets",
-                "snippet": "AcmeWidgets was founded by Jane Example in 2001.",
+                "title": "Lima",
+                "snippet": "Lima is the capital of Peru.",
                 "url": "u2",
             },
         ]
         top = ws.rank_hits(q, hits, k=1)[0]
-        self.assertEqual(top["title"], "AcmeWidgets")
+        self.assertEqual(top["title"], "Lima")
 
-    def test_wrote_prefers_work_page_with_author_language(self):
-        q = "Who wrote Zembla?"
+    def test_ceo_prefers_officer_attestation_over_bare_company(self):
+        q = "Who is the CEO of Apple?"
         hits = [
             {
-                "title": "Zembla (restaurant)",
-                "snippet": "Zembla is a hamburger restaurant.",
+                "title": "Apple Inc.",
+                "snippet": "Apple Inc. is an American multinational.",
                 "url": "u1",
             },
             {
-                "title": "Zembla",
-                "snippet": "Zembla is a novel written by Alice Example.",
+                "title": "Example Officer",
+                "snippet": (
+                    "Example Officer is the chief executive officer of Apple."
+                ),
                 "url": "u2",
             },
         ]
         top = ws.rank_hits(q, hits, k=1)[0]
-        self.assertEqual(top["title"], "Zembla")
+        self.assertEqual(top["title"], "Example Officer")
 
-    def test_makes_prefers_developer_attestation(self):
+    def test_maker_page_beats_bare_product_title(self):
         q = "What company makes the WidgetPhone?"
         hits = [
             {
