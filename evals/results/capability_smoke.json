@@ -2,7 +2,7 @@
   "backend": "gguf",
   "base_url": "http://127.0.0.1:8080",
   "model": "MiniCPM5-1B",
-  "when": "2026-08-27T16:41:58.981285+00:00",
+  "when": "2026-08-27T17:03:24.169383+00:00",
   "passed": 24,
   "total": 24,
   "rows": [
@@ -13,7 +13,7 @@
       "status": "refused",
       "reason": "math",
       "answer": "I cannot help with math or calculation questions.",
-      "elapsed_ms": 1,
+      "elapsed_ms": 2,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -144,7 +144,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The CEO of Apple is Tim Cook.",
-      "elapsed_ms": 13533,
+      "elapsed_ms": 13186,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -176,7 +176,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The capital of France is Paris, the city that has been the capital since 1944.",
-      "elapsed_ms": 3522,
+      "elapsed_ms": 3526,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -203,7 +203,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Apple Inc. is headquartered in Cupertino, California, in Silicon Valley.",
-      "elapsed_ms": 2304,
+      "elapsed_ms": 2325,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -230,7 +230,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Tim Cook was born in Mobile, Alabama.",
-      "elapsed_ms": 5573,
+      "elapsed_ms": 5889,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -259,7 +259,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The population of Tokyo is over 14 million as of 2023.",
-      "elapsed_ms": 4235,
+      "elapsed_ms": 3968,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -287,7 +287,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The iPhone was released in the United States on June 29, 2007.",
-      "elapsed_ms": 3827,
+      "elapsed_ms": 3971,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -315,7 +315,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Microsoft was founded in 1975.",
-      "elapsed_ms": 9074,
+      "elapsed_ms": 9245,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -343,7 +343,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Naruhito — (born 23 February 1960) is Emperor of Japan.",
-      "elapsed_ms": 16537,
+      "elapsed_ms": 15780,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -372,7 +372,7 @@
       "status": "ok",
       "reason": null,
       "answer": "1. The CEO of Apple is Tim Cook.\n2. Apple headquartered in Cupertino, California, in Silicon Valley.",
-      "elapsed_ms": 14970,
+      "elapsed_ms": 14408,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -397,7 +397,7 @@
       "status": "ok",
       "reason": null,
       "answer": "1. The CEO of Apple is Tim Cook.\n2. The capital of France is Paris, the city that has been the capital since 1944.",
-      "elapsed_ms": 16391,
+      "elapsed_ms": 16276,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -422,7 +422,7 @@
       "status": "ok",
       "reason": null,
       "answer": "History of Microsoft — Microsoft is a computer technology corporation founded on April 4, 1975, by Bill Gates and Paul Allen in Albuquerque, New Mexico, United States. Microsoft was founded in 1975.",
-      "elapsed_ms": 16710,
+      "elapsed_ms": 16868,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -447,7 +447,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The CEO of Apple is Tim Cook. Tim Cook was born in Mobile, Alabama.",
-      "elapsed_ms": 20916,
+      "elapsed_ms": 17465,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -471,8 +471,8 @@
       "tool": "multi_hop",
       "status": "ok",
       "reason": null,
-      "answer": "1. The last commit message is \"refactor: peel entity literals from fact_core and answer spans\".\n2. Kenya Nara (@penta2himajin) authored commit 7ba81f09932b (\"refactor: peel entity literals from fact_core and answer spans\").",
-      "elapsed_ms": 86,
+      "answer": "1. The last commit message is \"fix: restore when/birthday web answers via generic rank and office dig\".\n2. Kenya Nara (@penta2himajin) authored commit 01880a911fb4 (\"fix: restore when/birthday web answers via generic rank and office dig\").",
+      "elapsed_ms": 107,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -497,7 +497,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Humans landed the Moon on July 16, 1961, with one-fifth of the world's population. The US was engaged in the Cold War, and the Soviet Union had higher lift capacity. The speech was delivered at a football stadium in Houston. The Moon is a goal.",
-      "elapsed_ms": 3843,
+      "elapsed_ms": 3180,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -519,8 +519,8 @@
       "tool": "git_search",
       "status": "ok",
       "reason": null,
-      "answer": "The last commit message is \"refactor: peel entity literals from fact_core and answer spans\".",
-      "elapsed_ms": 45,
+      "answer": "The last commit message is \"fix: restore when/birthday web answers via generic rank and office dig\".",
+      "elapsed_ms": 44,
       "fail_reasons": [],
       "detail_keys": [
         "audience",

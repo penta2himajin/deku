@@ -143,5 +143,26 @@ class TestBirthdayOfficeIncumbentPick(unittest.TestCase):
         self.assertRegex(out.answer or "", r"1960|February")
 
 
+class TestEmperorOfficeTitleGeneric(unittest.TestCase):
+    def test_emperor_of_place_not_japan_only(self):
+        self.assertEqual(
+            ws.office_page_title("Who is the current emperor of Japan?"),
+            "Emperor of Japan",
+        )
+        # Same shape for another polity title (page may or may not exist).
+        self.assertEqual(
+            ws.office_page_title("Who is the emperor of Exampleland?"),
+            "Emperor of Exampleland",
+        )
+
+    def test_birthday_of_current_emperor_resolves_office_title(self):
+        self.assertEqual(
+            ws.office_page_title(
+                "What is the birthday of the current Emperor of Japan?"
+            ),
+            "Emperor of Japan",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

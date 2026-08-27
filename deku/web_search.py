@@ -500,8 +500,16 @@ def office_page_title(question: str) -> str | None:
         return None
     if re.search(r"(?i)\bpope\b", q) and re.search(r"(?i)\bwho\b", q):
         return "Pope"
-    if re.search(r"(?i)\bemperor of japan\b|\bemperor\b.*\bjapan\b", q):
-        return "Emperor of Japan"
+    m = re.search(
+        r"(?i)\bemperor of\s+(.+?)(?:'s)?(?:\s+(?:birthday|birth date|date of birth))?\??\s*$",
+        q,
+    )
+    if not m:
+        m = re.search(r"(?i)\bemperor of\s+([A-Za-z][A-Za-z .'-]*)", q)
+    if m:
+        place = wiki_office_place(m.group(1))
+        if place:
+            return f"Emperor of {place}"
     m = re.search(r"(?i)\bprime minister of (.+?)\??\s*$", q)
     if m:
         place = wiki_office_place(m.group(1))
@@ -940,9 +948,6 @@ def age_years_from_birth_date(birth: str, *, today=None) -> int | None:
     return years if years >= 0 else None
 
 
-_PERSON_NAME = r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)"
-
-
 def enrich_hits_for_answer(
     question: str,
     hits: list[dict],
@@ -955,9 +960,9 @@ def enrich_hits_for_answer(
         r"(?i)\b(ceo|president|prime minister|chief executive)\b",
         question or "",
     ))
-    want_apollo_when = bool(
-        re.search(r"(?i)\bapollo\s*\d+\b", question or "")
-        and re.search(r"(?i)\bwhen\b", question or "")
+    want_when_year = bool(
+        re.search(r"(?i)\bwhen\b", question or "")
+        and not re.search(r"(?i)\bborn\b", question or "")
     )
     want_founded_when = bool(
         re.search(r"(?i)\bfounded\b", question or "")
@@ -995,7 +1000,7 @@ def enrich_hits_for_answer(
             and re.search(r"(?i)\b(apple|microsoft|lvmh|google|alphabet)\b", snip)
         ):
             need = False
-        if want_apollo_when and not re.search(r"\b1969\b", snip):
+        if want_when_year and not re.search(r"\b(?:1[89]\d{2}|20\d{2})\b", snip):
             need = True
         if want_founded_when and not re.search(r"(?i)\bfounded in\s+\d{4}\b", snip):
             need = True
@@ -1079,8 +1084,12 @@ def enrich_hits_for_answer(
                     m = re.search(r"(?i)when (?:was|were) (.+?) born", question or "")
                     if m:
                         who = m.group(1).strip().rstrip("?.")
-                if who and re.search(r"(?i)current emperor of japan", who):
-                    who = wiki_incumbent_from_page("Emperor of Japan") or who
+                if who and re.search(
+                    r"(?i)\b(current|emperor|president|prime minister|pope)\b", who
+                ):
+                    ot = office_page_title(question or "")
+                    if ot:
+                        who = wiki_incumbent_from_page(ot) or who
                 if who and re.fullmatch(re.escape(who), title.strip(), flags=re.I):
                     bdate = wiki_birth_date(title)
                     if bdate:
@@ -1094,9 +1103,9 @@ def enrich_hits_for_answer(
                 q_ext = float(extract.term_score(question, extract_text))
                 if office and has_person_name(extract_text) and not has_person_name(snip):
                     better = True
-                elif want_apollo_when and re.search(r"\b1969\b", extract_text) and not re.search(
-                    r"\b1969\b", snip
-                ):
+                elif want_when_year and re.search(
+                    r"\b(?:1[89]\d{2}|20\d{2})\b", extract_text
+                ) and not re.search(r"\b(?:1[89]\d{2}|20\d{2})\b", snip):
                     better = True
                 elif want_founded_when and re.search(
                     r"(?i)\bfounded in\s+\d{4}\b", extract_text
@@ -1298,13 +1307,12 @@ def prefer_answer_span(snippet: str, question: str) -> str:
                 s,
             ):
                 return s.strip()
-    if re.search(r"(?i)\bapollo\s*\d+\b", question or "") and re.search(
-        r"(?i)\bwhen\b", question or ""
-    ):
+    if re.search(r"(?i)\bwhen\b", question or ""):
         for pat in (
-            r"(?i)([A-Z][^.]*\b(?:landed|landing|touched down)\b[^.]{0,80}\b1969\b[^.]*)",
-            r"(?i)([A-Z][^.]*\b(?:20\s+July|July\s+20)\s*,?\s*1969\b[^.]*)",
-            r"(?i)([A-Z][^.]*\bApollo\s*11\b[^.]{0,60}\b1969\b[^.]*)",
+            r"(?i)([A-Z][^.]*\b(?:landed|landing|touched down|happened)\b"
+            r"[^.]{0,80}\b(?:1[89]\d{2}|20\d{2})\b[^.]*)",
+            r"(?i)([A-Z][^.]*\b(?:1[89]\d{2}|20\d{2})\b[^.]{0,40}"
+            r"\b(?:landed|landing|touched down|happened)\b[^.]*)",
         ):
             m = re.search(pat, snip)
             if m:
@@ -1348,62 +1356,20 @@ def population_figure_grounded(core: str, document: str) -> bool:
 
 
 def fact_core_from_doc(question: str, document: str) -> str | None:
-    """Deterministic short core from notes when MiniCPM picks the wrong type."""
+    """Lexical/typed short core from notes.
+
+    Relation shapes (capital, founded, wrote, maker, dates, places, …) go
+    through ``slots.extract_typed``. Only acronym expansion and chemical
+    symbols remain as direct lexical extracts here.
+    """
     doc = document or ""
-    title_line = doc.splitlines()[0].strip() if doc else ""
-    if re.search(r"(?i)\bwho is the current emperor of japan\b", question or ""):
-        if title_line and re.search(
-            rf"(?i)\b{re.escape(title_line)}\b is Emperor", doc
-        ):
-            return title_line
-        mm = re.search(
-            r"(?i)\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+is Emperor of Japan\b",
-            doc,
-        )
-        if mm and extract.verify(mm.group(1).split()[0], doc):
-            return mm.group(1).strip()
-        # Person bio: title + accession / throne language (no closed name table).
-        if title_line and (
-            has_person_name(title_line)
-            or re.fullmatch(r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*", title_line)
-        ):
-            if re.search(
-                r"(?i)\b(chrysanthemum throne|acceded|is Emperor|Emperor of Japan)\b",
-                doc,
-            ) and extract.norm(title_line) in extract.norm(doc):
-                return title_line
-    if re.search(r"(?i)\bwho founded\b", question or ""):
-        if (
-            re.fullmatch(r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+", title_line or "")
-            and re.search(r"(?i)\b(co-?founder|founded)\b", doc)
-            and extract.verify(title_line.split()[0], doc)
-        ):
-            return title_line
-        for pat in (
-            r"(?i)\bfounded\s+by\s+"
-            r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+(?:\s+and\s+"
-            r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)?)",
-            r"(?i)\bco-?founded?\s+(?:by\s+)?"
-            r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)",
-        ):
-            mm = re.search(pat, doc)
-            if mm and extract.verify(mm.group(1).split()[0], doc):
-                return mm.group(1).strip()
-    if re.search(r"(?i)\bcapital of\b", question or ""):
-        for line in doc.splitlines():
-            for pat in (
-                r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+is the capital\b",
-                r"(?i)\bcapital (?:city )?of\s+[^.]{0,40}?\bis\s+"
-                r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b",
-            ):
-                mm = re.search(pat, line)
-                if not mm:
-                    continue
-                cand = mm.group(1).strip().rstrip(".")
-                if is_degenerate_core(cand, question):
-                    continue
-                if extract.verify(cand, doc):
-                    return cand
+    if not doc:
+        return None
+    slot = slot_mod.rule_slot(question or "")
+    if slot != "none":
+        typed = slot_mod.extract_typed(slot, question or "", doc)
+        if typed and core_fits_question(question, typed):
+            return typed
     if re.search(r"(?i)\bchemical symbol\b", question or ""):
         for pat in (
             r"(?i)\b(?:chemical )?symbol (?:is |of |:|=)?\s*([A-Z][a-z]?)\b",
@@ -1412,40 +1378,9 @@ def fact_core_from_doc(question: str, document: str) -> str | None:
             m = re.search(pat, doc)
             if m and extract.verify(m.group(1), doc):
                 return m.group(1)
-    m = re.search(r"(?i)^\s*who wrote (.+?)\??\s*$", question or "")
-    if m:
-        for pat in (
-            rf"\b(?:written|authored) by\s+{_PERSON_NAME}",
-            rf"\b(?:play|tragedy|comedy|novel|dystopian)\s+by\s+{_PERSON_NAME}",
-        ):
-            mm = re.search(pat, doc)
-            if mm and extract.verify(mm.group(1), doc):
-                return mm.group(1)
-    if re.search(r"(?i)\b(what company makes|makes the)\b", question or ""):
-        for pat in (
-            r"(?i)\b(?:developed|manufactured|made|created|produced|owned)\s+by\s+"
-            r"([A-Z][A-Za-z0-9]+)",
-            r"(?i)\bsubsidiary of(?: Japanese conglomerate)?\s+([A-Z][A-Za-z0-9]+)",
-        ):
-            mm = re.search(pat, doc)
-            if mm and extract.verify(mm.group(1), doc):
-                return mm.group(1)
-    if re.search(r"(?i)\bapollo\s*11\b", question or "") and re.search(
-        r"(?i)\bwhen\b", question or ""
-    ):
-        for pat in (
-            r"(?i)\bApollo\s*11\s*\(([^)]*1969[^)]*)\)",
-            r"(?i)\b(?:landed|landing|touchdown).{0,60}\b(20\s+July\s+1969|July\s+20,?\s+1969)\b",
-            r"(?i)\bon\s+(20\s+July\s+1969|July\s+20,?\s+1969)\b",
-            r"(?i)\b(1969)\b",
-        ):
-            mm = re.search(pat, doc)
-            if mm and extract.verify(mm.group(1), doc):
-                return mm.group(1)
     acr_m = re.search(r"(?i)^\s*what is\s+([A-Z]{2,8})\??\s*$", question or "")
     if acr_m:
         acr = acr_m.group(1)
-        # Prefer the expanded proper name before the parenthetical acronym.
         mm = re.search(
             rf"(?i)((?:[A-Z][A-Za-z]+(?:\s+(?:and\s+)?[A-Z][A-Za-z]+){{1,8}}))"
             rf"\s*\(\s*{re.escape(acr)}\s*\)",
@@ -1453,7 +1388,6 @@ def fact_core_from_doc(question: str, document: str) -> str | None:
         )
         if mm:
             core = re.sub(r"\s+", " ", mm.group(1)).strip()
-            # Title line "NASA" must not glue onto the expansion.
             if core.split()[0].casefold() == acr.casefold():
                 core = " ".join(core.split()[1:]).strip()
             if len(core.split()) >= 3 and extract.verify(core.split()[0], doc):
@@ -1464,7 +1398,6 @@ def fact_core_from_doc(question: str, document: str) -> str | None:
         )
         if mm:
             core = mm.group(1).strip().rstrip(",;:")
-            # Avoid chopping "U.S. federal…" at the first period.
             if re.search(r"(?i)\bU\.S\.\s*$", core):
                 rest = doc[mm.end():]
                 m2 = re.match(r"\s*([^.]+)", rest)
@@ -1472,85 +1405,6 @@ def fact_core_from_doc(question: str, document: str) -> str | None:
                     core = (core + " " + m2.group(1)).strip()
             if len(core.split()) >= 3 and extract.verify(core.split()[0], doc):
                 return core
-    if re.search(r"(?i)\bpopulation\b", question or ""):
-        for pat in (
-            r"(?i)\bpopulation\s+was\s+(?:roughly\s+|about\s+|approximately\s+)?"
-            r"([\d.,]+\s*(?:million|billion|thousand)?)",
-            r"(?i)\bpopulation\s+of\s+(?:about\s+)?([\d.,]+\s*(?:million|billion|thousand)?)",
-            r"(?i)\bpopulation[:\s]+(?:of\s+)?(?:about\s+)?([\d.,]+\s*(?:million|billion|thousand)?)",
-            r"(?i)\b(?:has|with)\s+a\s+population\s+of\s+(?:about\s+)?"
-            r"([\d.,]+\s*(?:million|billion|thousand)?)",
-            r"(?i)\bpopulation\s+of\s+the\s+(?:city\s+proper\s+)?"
-            r"was\s+(?:over\s+|about\s+)?([\d.,]+\s*(?:million|billion|thousand)?)",
-            r"(?i)(?:japan'?s|tokyo'?s|france'?s|china'?s)\s+population\s+was\s+"
-            r"(?:roughly\s+|about\s+)?([\d.,]+\s*million)",
-            r"(?i)\b(?:over|about|approximately|roughly)\s+([\d.,]+\s*million)\b",
-        ):
-            mm = re.search(pat, doc)
-            if mm:
-                core = mm.group(1).strip().rstrip(".")
-                # Reject digit fragments of larger decimals ("4" from "123.4").
-                token = core.split()[0]
-                if not re.search(rf"(?<![\d.]){re.escape(token)}(?![\d.])", doc):
-                    continue
-                if extract.verify(token, doc):
-                    return core
-    if re.search(r"(?i)\bborn\b", question or ""):
-        for pat in (
-            r"(?i)\bborn\s+(?:in|at)\s+"
-            r"([A-Z][A-Za-z.-]+(?:,\s*[A-Z][A-Za-z.-]+)?)",
-            r"(?i)\bbirthplace[:\s]+([A-Z][A-Za-z.-]+(?:,\s*[A-Z][A-Za-z.-]+)?)",
-            r"(?i)\braised\s+in\s+"
-            r"([A-Z][A-Za-z.-]+(?:,\s*[A-Z][A-Za-z.-]+)?)",
-        ):
-            mm = re.search(pat, doc)
-            if mm:
-                core = mm.group(1).strip().rstrip(".")
-                # Skip date-only "born November" false starts.
-                if re.match(r"(?i)(?:january|february|march|april|may|june|"
-                            r"july|august|september|october|november|december)\b", core):
-                    continue
-                if extract.verify(core.split(",")[0].strip(), doc):
-                    return core
-    if re.search(r"(?i)\b(headquarters?|headquartered|based)\b", question or ""):
-        for pat in (
-            r"(?i)\bheadquartered\s+in\s+"
-            r"([A-Z][A-Za-z][A-Za-z.-]*(?:,\s*[A-Z][A-Za-z][A-Za-z.-]*)?)",
-            r"(?i)\bheadquarters\s+(?:are\s+)?in\s+"
-            r"([A-Z][A-Za-z][A-Za-z.-]*(?:,\s*[A-Z][A-Za-z][A-Za-z.-]*)?)",
-            r"(?i)\bbased\s+in\s+"
-            r"([A-Z][A-Za-z][A-Za-z.-]*(?:,\s*[A-Z][A-Za-z][A-Za-z.-]*)?)",
-        ):
-            mm = re.search(pat, doc)
-            if mm:
-                core = mm.group(1).strip().rstrip(".")
-                if extract.verify(core.split(",")[0].strip(), doc):
-                    return core
-    if re.search(r"(?i)\breleased\b|\bpublished\b", question or ""):
-        for pat in (
-            r"(?i)\breleased\s+in\s+(\d{4})",
-            r"(?i)\brelease\s+date[:\s]+(?:.*?)?(\d{4})",
-            r"(?i)\bfirst\s+released\s+(?:on\s+)?(?:\w+\s+\d{1,2},?\s+)?(\d{4})",
-            r"(?i)\bunveiled\b.{0,60}\b((?:19|20)\d{2})\b",
-            r"(?i)\blaunched\b.{0,40}\b((?:19|20)\d{2})\b",
-            r"(?i)\bfirst\s+published\s+(?:in\s+|on\s+)?(?:\w+\s+\d{1,2},?\s+)?(\d{4})",
-            r"(?i)\bpublished\s+(?:in\s+|on\s+)?(?:\w+\s+\d{1,2},?\s+)?(\d{4})",
-            r"(?i)\bpublication\s+date[:\s]+(?:.*?)?(\d{4})",
-        ):
-            mm = re.search(pat, doc)
-            if mm and extract.verify(mm.group(1), doc):
-                return mm.group(1)
-    if re.search(r"(?i)\bfounded\b", question or "") and re.search(
-        r"(?i)\bwhen\b", question or ""
-    ):
-        for pat in (
-            r"(?i)\bfounded\s+in\s+(\d{4})",
-            r"(?i)\bfounded\s+on\s+\w+\s+\d{1,2},?\s+(\d{4})",
-            r"(?i)\bestablished\s+in\s+(\d{4})",
-        ):
-            mm = re.search(pat, doc)
-            if mm and extract.verify(mm.group(1), doc):
-                return mm.group(1)
     return None
 
 
@@ -2937,11 +2791,11 @@ def run(question: str, *, router: str = "rule", k: int = 4,
         return population_figure_grounded(val, doc)
 
     if classless:
-        # Classless: typed shapes (date/number/place); prefer attested office
-        # incumbents over MiniCPM; closed fact_core only as last resort.
+        # Classless: typed slots first; office / Wikidata; MiniCPM; no closed
+        # relation fact_core table (slots + lexical acronym/chemical only).
         if (
             typed
-            and slot in ("date", "number", "place")
+            and slot in ("date", "number", "place", "person", "org")
             and core_fits_question(question, typed)
             and _pop_ok(typed)
         ):
@@ -2968,6 +2822,8 @@ def run(question: str, *, router: str = "rule", k: int = 4,
             core, status = minicpm_extract(question, doc, seed=seed)
             if core and not _pop_ok(core):
                 core = None
+            # Acronym / chemical lexical core only (fact_core no longer holds
+            # relation shape tables).
             if (not core or not core_fits_question(question, core)) and fact and _pop_ok(
                 fact
             ):

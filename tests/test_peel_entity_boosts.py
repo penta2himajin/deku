@@ -149,11 +149,11 @@ class TestNoFactCoreEntityLiterals(unittest.TestCase):
 
     def test_maker_uses_generic_developed_by_not_sony_literal(self):
         doc = (
-            "Example Console\n"
-            "The Example Console is developed and manufactured by Example Corp.\n"
+            "WidgetPhone\n"
+            "The WidgetPhone is developed and manufactured by Globex.\n"
         )
-        got = ws.fact_core_from_doc("What company makes the Example Console?", doc)
-        self.assertEqual(got, "Example")
+        got = ws.fact_core_from_doc("What company makes the WidgetPhone?", doc)
+        self.assertEqual(got, "Globex")
 
 
 if __name__ == "__main__":
