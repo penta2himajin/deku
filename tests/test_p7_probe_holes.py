@@ -19,22 +19,6 @@ class TestOpinionJoinRefuse(unittest.TestCase):
 
 
 class TestCeoSurnameGrounding(unittest.TestCase):
-    def test_template_allows_surname_in_doc(self):
-        doc = (
-            "Google\n"
-            "Pichai was appointed CEO of Google in 2015, replacing Larry Page.\n"
-        )
-        got = ws.template_reply(
-            "Who is the CEO of Google?", "Sundar Pichai", doc
-        )
-        self.assertIsNotNone(got)
-        self.assertIn("Sundar Pichai", got)
-        self.assertTrue(
-            ws.predicate_supported(
-                "Who is the CEO of Google?", "Sundar Pichai", doc
-            )
-        )
-
     def test_ceo_compose_from_bio_without_ceo_word(self):
         doc = (
             "Sundar Pichai\n"

@@ -249,10 +249,6 @@ def finalize_reply(
     composed = ws.compose_reply(core or "", "", doc, question=question or "")
     if composed and ws.reply_grounded(composed, doc, question=question):
         return composed
-    if not ws.classless_web_enabled():
-        templ = ws.template_reply(question, core or "", doc)
-        if templ:
-            return templ
     return lead
 
 

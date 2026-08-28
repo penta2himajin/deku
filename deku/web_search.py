@@ -19,7 +19,7 @@ import urllib.request
 from dataclasses import dataclass, field
 
 from deku import extract
-from deku import slots as slot_mod
+from deku import lexical_core as lex
 
 INTENTS = ("search", "extract", "refuse")
 INTENT_RE = re.compile(r"(?i)\b(search|extract|refuse)\b")
@@ -959,20 +959,13 @@ def population_figure_grounded(core: str, document: str) -> bool:
 
 
 def fact_core_from_doc(question: str, document: str) -> str | None:
-    """Lexical/typed short core from notes.
-
-    Relation shapes (capital, founded, wrote, maker, dates, places, …) go
-    through ``slots.extract_typed``. Only acronym expansion and chemical
-    symbols remain as direct lexical extracts here.
-    """
+    """Lexical short core from notes (question-guided patterns + acronym/chem)."""
     doc = document or ""
     if not doc:
         return None
-    slot = slot_mod.rule_slot(question or "")
-    if slot != "none":
-        typed = slot_mod.extract_typed(slot, question or "", doc)
-        if typed and core_fits_question(question, typed):
-            return typed
+    typed = lex.lexical_core_from_doc(question or "", doc)
+    if typed and core_fits_question(question, typed):
+        return typed
     if re.search(r"(?i)\bchemical symbol\b", question or ""):
         for pat in (
             r"(?i)\b(?:chemical )?symbol (?:is |of |:|=)?\s*([A-Z][a-z]?)\b",
@@ -1489,43 +1482,6 @@ def hit_title_matches_topic(title: str, topic: str | None) -> bool:
     return False
 
 
-_RELATION_CUES = {
-    "founded": re.compile(
-        r"(?i)\b(founded|co-?founded|founder|founders)\b"
-    ),
-    "wrote": re.compile(
-        r"(?i)\b(wrote|written|authored|author|play by|novel by|tragedy by)\b"
-    ),
-    "ceo": re.compile(r"(?i)\b(ceo|chief executive)\b"),
-    "capital": re.compile(r"(?i)\bcapital\b"),
-    "born": re.compile(r"(?i)\bborn\b"),
-    "published": re.compile(r"(?i)\b(published|publication)\b"),
-    "makes": re.compile(
-        r"(?i)\b(?:developed|manufactured|made|created|produced|owned)\s+by\b|"
-        r"\bsubsidiary of\b"
-    ),
-}
-
-
-def relation_kind(question: str) -> str | None:
-    q = question or ""
-    if re.search(r"(?i)\bwho founded\b", q):
-        return "founded"
-    if re.search(r"(?i)\bwho wrote\b", q):
-        return "wrote"
-    if re.search(r"(?i)\b(ceo|chief executive)\b", q):
-        return "ceo"
-    if re.search(r"(?i)\bcapital of\b", q):
-        return "capital"
-    if re.search(r"(?i)\bborn\b", q):
-        return "born"
-    if re.search(r"(?i)\bpublished\b", q):
-        return "published"
-    if re.search(r"(?i)\b(what company makes|manufacturer|makes the)\b", q):
-        return "makes"
-    return None
-
-
 def person_attested(core: str, document: str) -> bool:
     """True when the full person name or a distinctive surname is in the doc."""
     c = (core or "").strip()
@@ -1538,28 +1494,6 @@ def person_attested(core: str, document: str) -> bool:
     if len(parts) >= 2 and extract.norm(parts[-1]) in extract.norm(doc):
         return True
     return False
-
-
-def predicate_supported(question: str, core: str | None, document: str) -> bool:
-    """True when the asked relation is attested near the core (or anywhere)."""
-    rel = relation_kind(question)
-    if not rel:
-        return True
-    cue = _RELATION_CUES.get(rel)
-    if not cue:
-        return True
-    doc = document or ""
-    if not cue.search(doc):
-        return False
-    c = (core or "").strip()
-    if not c:
-        return bool(cue.search(doc))
-    # Prefer a sentence/window that mentions both core and the relation.
-    for sent in re.split(r"(?<=[.!?])\s+|\n+", doc):
-        if person_attested(c, sent) and cue.search(sent):
-            return True
-    # Fallback: core and cue both present in the doc (enrichment lines).
-    return person_attested(c, doc) and bool(cue.search(doc))
 
 
 _MONTHS = frozenset("""
@@ -1710,15 +1644,6 @@ def sentence_with_core(
     return candidates[0][2]
 
 
-def classless_web_enabled() -> bool:
-    """Prefer grounded sentence/summary over closed relation templates.
-
-    Default on. Set DEKU_CLASSLESS_WEB=0 to restore template_reply mainline.
-    """
-    v = (os.environ.get("DEKU_CLASSLESS_WEB") or "1").strip().lower()
-    return v not in ("0", "false", "no", "off")
-
-
 def best_sentence_for_question(question: str, document: str) -> str | None:
     """Highest question-term-score sentence in `document` (no relation class)."""
     if not (document or "").strip():
@@ -1759,163 +1684,19 @@ def best_sentence_for_question(question: str, document: str) -> str | None:
     return candidates[0][2]
 
 
-def template_reply(question: str, core: str, document: str) -> str | None:
-    """Deterministic NL reply from question shape + grounded core.
-
-    Legacy / opt-out path when DEKU_CLASSLESS_WEB=0. Prefer
-    compose_reply / best_sentence_for_question on the product mainline.
-    """
-    c = (core or "").strip()
-    if not c or not document:
-        return None
-    if not (
-        extract.norm(c) in extract.norm(document)
-        or person_attested(c, document)
-    ):
-        return None
-    q = (question or "").strip()
-
-    m = re.search(
-        r"(?i)^\s*who is the (ceo|chief executive(?: officer)?|president|"
-        r"prime minister) of (.+?)\??\s*$",
-        q,
-    )
-    if m:
-        role_raw, org = m.group(1), m.group(2).strip().rstrip("?.")
-        role = "CEO" if re.search(r"(?i)ceo|chief executive", role_raw) else m.group(1).title()
-        return f"The {role} of {org} is {c}."
-
-    m = re.search(r"(?i)^\s*what is the capital of (.+?)\??\s*$", q)
-    if m:
-        place = m.group(1).strip().rstrip("?.")
-        return f"The capital of {place} is {c}."
-
-    m = re.search(r"(?i)^\s*who founded (.+?)\??\s*$", q)
-    if m:
-        org = m.group(1).strip().rstrip("?.")
-        return f"{org} was founded by {c}."
-
-    m = re.search(r"(?i)^\s*who wrote (.+?)\??\s*$", q)
-    if m:
-        work = m.group(1).strip().strip('"').rstrip("?.")
-        return f"{work} was written by {c}."
-
-    m = re.search(r"(?i)^\s*what company makes (.+?)\??\s*$", q)
-    if m:
-        thing = m.group(1).strip().rstrip("?.")
-        return f"{c} makes {thing}."
-
-    m = re.search(r"(?i)^\s*what company is (.+?)\??\s*$", q)
-    if m:
-        thing = m.group(1).strip().rstrip("?.")
-        if thing.casefold() in c.casefold():
-            return f"{c}."
-        return f"{thing} is {c}."
-
-    m = re.search(
-        r"(?i)^\s*where (?:is|are) (.+?) (?:headquartered|based)\??\s*$",
-        q,
-    )
-    if m:
-        org = m.group(1).strip().rstrip("?.")
-        return f"{org} is headquartered in {c}."
-
-    m = re.search(r"(?i)^\s*what (?:is|are) the headquarters of (.+?)\??\s*$", q)
-    if m:
-        org = m.group(1).strip().rstrip("?.")
-        return f"The headquarters of {org} are in {c}."
-
-    m = re.search(r"(?i)^\s*where is (?:the )?(.+?)\??\s*$", q)
-    if m:
-        place = m.group(1).strip().rstrip("?.")
-        return f"The {place} is in {c}." if not place.lower().startswith("the ") else f"{place} is in {c}."
-
-    m = re.search(r"(?i)chemical symbol for (\w+)", q)
-    if m:
-        return f"The chemical symbol for {m.group(1)} is {c}."
-
-    m = re.search(r"(?i)^\s*when did (.+?) end\??\s*$", q)
-    if m:
-        event = m.group(1).strip()
-        return f"{event} ended in {c}."
-
-    m = re.search(r"(?i)boiling point of (\w+)", q)
-    if m:
-        return f"The boiling point of {m.group(1)} is {c}°C."
-
-    m = re.search(r"(?i)^\s*where (?:was|is) (.+?) born\??\s*$", q)
-    if m:
-        who = m.group(1).strip().rstrip("?.")
-        return f"{who} was born in {c}."
-
-    m = re.search(r"(?i)^\s*what is the population of (.+?)\??\s*$", q)
-    if m:
-        place = m.group(1).strip().rstrip("?.")
-        return f"The population of {place} is {c}."
-
-    m = re.search(r"(?i)^\s*when (?:was|were) (?:the )?(.+?) released\??\s*$", q)
-    if m:
-        thing = m.group(1).strip().rstrip("?.")
-        return f"The {thing} was released in {c}." if not thing.lower().startswith(
-            "the "
-        ) else f"{thing} was released in {c}."
-
-    m = re.search(r"(?i)^\s*when (?:was|were) (?:the )?(.+?) published\??\s*$", q)
-    if m:
-        work = m.group(1).strip().rstrip("?.")
-        return f"{work} was published in {c}."
-
-    m = re.search(r"(?i)^\s*when (?:was|were) (.+?) founded\??\s*$", q)
-    if m:
-        org = m.group(1).strip().rstrip("?.")
-        return f"{org} was founded in {c}."
-
-    m = re.search(r"(?i)^\s*what is\s+([A-Z]{2,8})\??\s*$", q)
-    if m:
-        acr = m.group(1)
-        # Core may already be a full definitional sentence.
-        if re.search(r"(?i)\bis\b", c):
-            return c if c.endswith(".") else f"{c}."
-        if c.lower().startswith(("a ", "an ", "the ")):
-            return f"{acr} is {c}."
-        return f"{acr} is {c}."
-
-    return None
-
-
 def compose_reply(
     core: str | None,
     summary: str | None,
     document: str,
     question: str = "",
 ) -> str | None:
-    """Score grounded candidates; never let a garbage core veto a good summary.
-
-    Bare numeric cores skip summarization — MiniCPM tends to invent causal
-    explanations around a lone number even when every word is attested.
-
-    When classless_web_enabled(), skip closed relation templates and prefer
-    grounded summary / source sentence / core.
-    """
-    classless = classless_web_enabled()
+    """Score grounded candidates; prefer attested summary / sentence / core."""
     numeric_core = bool(core and re.fullmatch(r"[\d.,]+", core.strip()))
     core_ok = bool(core) and not is_degenerate_core(core, question)
     if core_ok and core_echoes_topic(question, core):
         core_ok = False
     if core_ok and is_predecessor_core(core, document, question):
         core_ok = False
-    if core_ok and not predicate_supported(question, core, document):
-        # Bio packs for Wikidata CEOs often omit the word "CEO".
-        keep = bool(
-            re.search(r"(?i)\b(ceo|chief executive)\b", question or "")
-            and person_attested(core or "", document)
-            and (
-                (not classless and template_reply(question, core or "", document))
-                or classless
-            )
-        )
-        if not keep:
-            core_ok = False
     candidates: list[tuple[float, str, str]] = []
 
     if (
@@ -1923,19 +1704,14 @@ def compose_reply(
         and summary
         and len(summary.split()) >= MIN_SUMMARY_WORDS
         and reply_grounded(summary, document, question=question)
-        and (
-            not relation_kind(question)
-            or predicate_supported(question, None, document)
-        )
     ):
         sc = 8.0
         if core_ok and core_in_reply(core or "", summary):
             sc = 12.0
         elif not core_ok:
-            sc = 11.0  # prefer grounded summary over predecessor / echo cores
+            sc = 11.0
         else:
-            sc = 7.0  # grounded summary that disagrees with core
-        # Prefer summary when it names a different person than a bad core.
+            sc = 7.0
         if (
             not core_ok
             and core
@@ -1946,26 +1722,11 @@ def compose_reply(
         candidates.append((sc, summary.strip(), "summary"))
 
     if core_ok and core:
-        if not classless:
-            templ = template_reply(question, core, document)
-            if templ and reply_grounded(templ, document, question=question):
-                candidates.append((9.0, templ, "template"))
-            elif templ and (
-                extract.norm(core) in extract.norm(document)
-                or person_attested(core, document)
-            ):
-                candidates.append((7.5, templ, "template_loose"))
         sent = sentence_with_core(core, document, question=question)
-        if sent and (
-            classless
-            or not relation_kind(question)
-            or predicate_supported(question, core, document)
-        ):
-            # Classless: slightly prefer attested sentence over bare core.
-            candidates.append((8.5 if classless else 7.0, sent, "sentence"))
+        if sent:
+            candidates.append((8.5, sent, "sentence"))
         elif (
-            classless
-            and re.search(r"(?i)\bwho\b", question or "")
+            re.search(r"(?i)\bwho\b", question or "")
             and person_attested(core, document)
             and (
                 has_person_name(core)
@@ -1975,36 +1736,22 @@ def compose_reply(
                 )
             )
         ):
-            # Bio packs often attest a surname only; keep the full grounded name.
             name = core.strip()
             if not name.endswith("."):
                 name += "."
             candidates.append((9.2, name, "core_name"))
-        if predicate_supported(question, core, document) or (
-            classless and person_attested(core, document)
+        if (
+            person_attested(core, document)
+            or extract.norm(core) in extract.norm(document)
         ):
             candidates.append((3.0, core.strip(), "core"))
 
-    # Degenerate core: fall back to a document sentence (classless) or
-    # closed fact_core + template (legacy).
     if (not core_ok) and document:
-        if classless:
-            best = best_sentence_for_question(question, document)
-            if best and reply_grounded(best, document, question=question):
-                candidates.append((9.0, best, "best_sentence"))
-            elif best:
-                candidates.append((8.0, best, "best_sentence_loose"))
-        else:
-            fact = fact_core_from_doc(question, document)
-            if fact and not is_degenerate_core(fact, question) and core_fits_question(
-                question, fact
-            ):
-                templ = template_reply(question, fact, document)
-                if templ and reply_grounded(templ, document, question=question):
-                    candidates.append((9.5, templ, "fact_template"))
-                sent = sentence_with_core(fact, document, question=question)
-                if sent:
-                    candidates.append((8.5, sent, "fact_sentence"))
+        best = best_sentence_for_question(question, document)
+        if best and reply_grounded(best, document, question=question):
+            candidates.append((9.0, best, "best_sentence"))
+        elif best:
+            candidates.append((8.0, best, "best_sentence_loose"))
 
     if not candidates:
         return None
@@ -2146,7 +1893,6 @@ def should_abstain(
             and not is_degenerate_core(c, question)
             and core_fits_question(question, c)
             and extract.norm(c) in extract.norm(doc)
-            and predicate_supported(question, c, doc)
         )
 
     if doc_score < MIN_HIT_SCORE:
@@ -2163,8 +1909,6 @@ def should_abstain(
         return False
     if not core_fits_question(question, core):
         return True
-    if not predicate_supported(question, core, doc):
-        return True
     return False
 
 
@@ -2176,8 +1920,7 @@ def run(question: str, *, router: str = "rule", k: int = 4,
     claim token in the summary appears in the notes; otherwise fall back to a
     source sentence. Abstain when evidence is weak.
 
-    Typed slot fallback (rules first; optional Needle for slot label only)
-    fills cores when registered templates miss.
+    Typed slot fallback removed — lexical extract + MiniCPM + compose_reply.
     """
     if router == "needle":
         intent = needle_intent(question)
@@ -2233,9 +1976,7 @@ def run(question: str, *, router: str = "rule", k: int = 4,
                 out.document = doc
                 break
         title = (top.get("title") or "").strip()
-        bdate = slot_mod.extract_typed(
-            "date", f"What is {who}'s birthday?", doc
-        )
+        bdate = lex.birth_date_from_doc(f"What is {who}'s birthday?", doc)
         years = age_years_from_birth_date(bdate) if bdate else None
         title_ok = bool(re.fullmatch(re.escape(who), title, flags=re.I))
         grounded = bool(
@@ -2247,8 +1988,6 @@ def run(question: str, *, router: str = "rule", k: int = 4,
             )
         )
         if bdate and years is not None and grounded:
-            out.detail["slot"] = "number"
-            out.detail["slot_source"] = "rule"
             out.detail["core"] = str(years)
             out.detail["birth_date"] = bdate
             out.detail["extract_status"] = "age_from_birth_date"
@@ -2257,17 +1996,7 @@ def run(question: str, *, router: str = "rule", k: int = 4,
             out.answer = f"{who} is {years} years old."
             out.status = "ok"
             return out
-    slot, slot_src = slot_mod.classify_slot(
-        question, use_needle=use_needle_slots
-    )
-    out.detail["slot"] = slot
-    out.detail["slot_source"] = slot_src
-    typed = slot_mod.extract_typed(slot, question, doc) if slot != "none" else None
-    # Low doc_score alone is not enough to abstain yet: short pages (Hamlet,
-    # product brands) often share few question terms but still hold the answer.
     fact = fact_core_from_doc(question, doc)
-    classless = classless_web_enabled()
-    out.detail["classless_web"] = classless
 
     def _pop_ok(val: str | None) -> bool:
         if not val:
@@ -2276,70 +2005,38 @@ def run(question: str, *, router: str = "rule", k: int = 4,
             return True
         return population_figure_grounded(val, doc)
 
-    if classless:
-        # Classless: typed slots first; office title core; MiniCPM; lexical
-        # acronym/chemical via fact_core.
-        if (
-            typed
-            and slot in ("date", "number", "place", "person", "org")
-            and core_fits_question(question, typed)
-            and _pop_ok(typed)
-        ):
-            core, status = typed, "typed_core"
-        elif (
-            office_core
-            and core_fits_question(question, office_core)
-            and not is_predecessor_core(office_core, doc, question)
-        ):
-            core, status = office_core, "title_core"
-        else:
-            core, status = minicpm_extract(question, doc, seed=seed)
-            if core and not _pop_ok(core):
-                core = None
-            if (not core or not core_fits_question(question, core)) and fact and _pop_ok(
-                fact
-            ):
-                core, status = fact, "doc_core"
-            if (not core or not core_fits_question(question, core)) and typed and _pop_ok(
-                typed
-            ):
-                if core_fits_question(question, typed):
-                    core, status = typed, "typed_core"
-    # Acronym "What is NASA?" — prefer lexical expansion over MiniCPM cores.
-    elif fact and re.search(r"(?i)^\s*what is\s+[A-Z]{2,8}\??\s*$", question or ""):
-        core, status = fact, "doc_core"
-    elif (
+    if (
         fact
-        and re.search(r"(?i)\b(headquarters?|headquartered|based|population|published)\b", question or "")
         and core_fits_question(question, fact)
         and _pop_ok(fact)
     ):
         core, status = fact, "doc_core"
     elif (
-        typed
-        and slot in ("date", "number", "place")
-        and core_fits_question(question, typed)
-        and _pop_ok(typed)
+        office_core
+        and core_fits_question(question, office_core)
+        and not is_predecessor_core(office_core, doc, question)
     ):
-        core, status = typed, "typed_core"
+        core, status = office_core, "title_core"
+    elif fact and re.search(r"(?i)^\s*what is\s+[A-Z]{2,8}\??\s*$", question or ""):
+        core, status = fact, "doc_core"
     else:
         core, status = minicpm_extract(question, doc, seed=seed)
         if core and not _pop_ok(core):
             core = None
         if (not core or not core_fits_question(question, core)) and office_core:
-            if not is_predecessor_core(office_core, doc, question):
+            if (
+                not is_predecessor_core(office_core, doc, question)
+                and core_fits_question(question, office_core)
+            ):
                 core, status = office_core, "title_core"
-        if not core or not core_fits_question(question, core):
-            if fact and _pop_ok(fact):
-                core, status = fact, "doc_core"
-        if (not core or not core_fits_question(question, core)) and typed:
-            if core_fits_question(question, typed) and _pop_ok(typed):
-                core, status = typed, "typed_core"
+        if (not core or not core_fits_question(question, core)) and fact and _pop_ok(
+            fact
+        ):
+            core, status = fact, "doc_core"
     if core and (
         is_degenerate_core(core, question)
         or core_echoes_topic(question, core)
         or is_predecessor_core(core, doc, question)
-        or not predicate_supported(question, core, doc)
     ):
         out.detail["core_rejected"] = core
         rejected = core
@@ -2356,12 +2053,9 @@ def run(question: str, *, router: str = "rule", k: int = 4,
                 and not is_predecessor_core(cand, doc, question)
                 and core_fits_question(question, cand)
                 and _pop_ok(cand)
-                and predicate_supported(question, cand, doc)
             ):
                 core, status = cand, st
                 break
-        if not core and typed and core_fits_question(question, typed) and _pop_ok(typed):
-            core, status = typed, "typed_core"
     out.detail["core"] = core
     out.detail["extract_status"] = status
     if should_abstain(question=question, doc=doc, score=top_score, core=core):
@@ -2373,18 +2067,6 @@ def run(question: str, *, router: str = "rule", k: int = 4,
     if summary and core and core_in_reply(core, summary) and not reply_grounded(summary, doc, question=question):
         out.detail["summary_rejected"] = "ungrounded_claims"
     reply = compose_reply(core, summary, doc, question=question)
-    if (
-        not classless
-        and (not reply or reply.strip() == (core or "").strip())
-        and core
-    ):
-        typed_r = slot_mod.typed_reply(slot, question, core, doc)
-        if typed_r and reply_grounded(typed_r, doc, question=question):
-            reply = typed_r
-            out.detail["reply_source"] = "typed_template"
-        elif typed_r and extract.norm(core) in extract.norm(doc):
-            reply = typed_r
-            out.detail["reply_source"] = "typed_template"
     if not reply:
         out.answer, out.status = CANNOT_ANSWER, "cannot_answer"
         out.detail["abstain_reason"] = "empty_reply"

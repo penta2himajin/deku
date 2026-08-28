@@ -14,8 +14,8 @@ Deterministic (or lightly lexical) machinery:
 - **Tools** — `web_search`, `dir_search`, `git_search`, `diff_search`, `url_read`
 - **Weak multi-step** — propose clause→tool steps then validate (allow-list, ≤3 steps, bind rules; tools include `url_read`); optional bind of prior hop core; integrate; expose `cores` / `next_hint` for parent agents (`deku.hints.next_hint_for` maps status + abstain_reason → action codes)
 - **Audience** — refuse prose for humans, `refused:<reason>` codes for agents (`--audience` / `DEKU_AUDIENCE`)
-- **Typed slots** — closed labels (`date|place|person|number|org|role`); rule extractors pull a grounded core from the document when registered templates miss; source-sentence / thin typed reply as fallback
-- **Optional Needle** — tool routing and (separately) slot-label suggestion only; never free-form answers or plans. Product smokes measure the rule path without Needle
+- **Lexical core** — regex extractors pull a grounded core from the document (dates, places, numbers, org/person cues); `compose_reply` picks summary / sentence / core when grounded; no closed slot labels or template replies
+- **Optional Needle** — tool routing only; never free-form answers or plans. Product smokes measure the rule path without Needle
 - **Hierarchical summary** — map/reduce with extractive leaf anchors (MiniCPM only compresses short notes)
 
 The model is never the planner of record.

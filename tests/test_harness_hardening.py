@@ -47,22 +47,24 @@ class TestComposeReplyLadder(unittest.TestCase):
         self.assertNotEqual((got or "").strip().lower(), "the capital")
 
 
-class TestPredicateGrounding(unittest.TestCase):
-    def test_founded_requires_founder_language(self):
+class TestPredicateGroundingRemoved(unittest.TestCase):
+    def test_predicate_supported_gone(self):
+        self.assertFalse(hasattr(ws, "predicate_supported"))
+
+    def test_founded_lexical_requires_founder_language(self):
         q = "Who founded Stripe?"
         doc = (
             "Greg Brockman\n"
             "He began his career at Stripe in 2010 and became CTO in 2013."
         )
-        self.assertFalse(
-            ws.predicate_supported(q, "Greg Brockman", doc)
-        )
+        self.assertIsNone(ws.fact_core_from_doc(q, doc))
         doc2 = (
             "Patrick Collison\n"
             "In 2010, Collison co-founded Stripe with his brother John."
         )
-        self.assertTrue(
-            ws.predicate_supported(q, "Patrick Collison", doc2)
+        self.assertEqual(
+            ws.fact_core_from_doc(q, doc2),
+            "Patrick Collison",
         )
 
 

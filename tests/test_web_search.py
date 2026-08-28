@@ -122,7 +122,7 @@ class TestComposeReply(unittest.TestCase):
         self.assertIn("CEO", got)
 
     def test_fallback_core_alone_if_no_sentence(self):
-        doc = "Title\nNo useful body here.\nSource: x"
+        doc = "Paris\nNo other facts in the body.\nSource: x"
         self.assertEqual(ws.compose_reply("Paris", "London is capital.", doc), "Paris")
 
     def test_short_summary_rejected_even_if_core_present(self):
@@ -589,12 +589,10 @@ class TestEnrichAndRank(unittest.TestCase):
         top = ws.rank_hits("What is the boiling point of water?", hits, k=2)
         self.assertEqual(top[0]["title"], "Boiling")
 
-    def test_boiling_template(self):
+    def test_boiling_fact_core(self):
         doc = "Water boils at 100 °C at atmospheric pressure."
-        got = ws.template_reply(
-            "What is the boiling point of water?", "100", doc,
-        )
-        self.assertEqual(got, "The boiling point of water is 100°C.")
+        got = ws.fact_core_from_doc("What is the boiling point of water?", doc)
+        self.assertEqual(got, "100")
 
     def test_prefer_boiling_span(self):
         snip = (
