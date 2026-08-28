@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from deku import route as rt
-from deku.route_cases import ROUTE_CASES
+from tests.route_cases import ROUTE_CASES
 
 
 class TestGoldCases(unittest.TestCase):
@@ -24,7 +24,7 @@ class TestGoldCases(unittest.TestCase):
             self.assertEqual(hard.tool, want, msg=question)
 
     def test_hard_route_skips_soft_web(self):
-        self.assertIsNone(rt.hard_route("Who is the CEO of Apple?"))
+        self.assertIsNone(rt.hard_route("Who is the CEO of ExampleCorp?"))
 
 
 class TestExtractUrl(unittest.TestCase):
@@ -37,7 +37,7 @@ class TestExtractUrl(unittest.TestCase):
         self.assertEqual(u, "https://en.wikipedia.org/wiki/Apple_Inc")
 
     def test_no_url(self):
-        self.assertIsNone(rt.extract_url("Who is the CEO of Apple?"))
+        self.assertIsNone(rt.extract_url("Who is the CEO of ExampleCorp?"))
 
 
 class TestRuleRoute(unittest.TestCase):
@@ -50,14 +50,14 @@ class TestRuleRoute(unittest.TestCase):
         self.assertEqual(rt.rule_route("What is 2+2?").tool, "refuse")
 
     def test_web_fact(self):
-        self.assertEqual(rt.rule_route("Who is the CEO of Apple?").tool, "web_search")
+        self.assertEqual(rt.rule_route("Who is the CEO of ExampleCorp?").tool, "web_search")
 
     def test_dir_ident(self):
         self.assertEqual(rt.rule_route("What is the PREFILL string?").tool, "dir_search")
 
     def test_acronym_is_not_dir_ident(self):
         self.assertEqual(
-            rt.rule_route("Who is the current CEO of LVMH?").tool, "web_search"
+            rt.rule_route("Who is the current CEO of ExampleLux?").tool, "web_search"
         )
         self.assertEqual(
             rt.rule_route("What is NASA?").tool, "web_search"
@@ -65,7 +65,7 @@ class TestRuleRoute(unittest.TestCase):
 
     def test_mixed_web_dir_plans(self):
         got = rt.rule_route(
-            "Who is the CEO of Apple and what is the PREFILL string?"
+            "Who is the CEO of ExampleCorp and what is the PREFILL string?"
         )
         self.assertEqual(got.tool, "multi_hop")
         self.assertEqual(got.detail.get("plan_id"), "web+dir")
@@ -103,9 +103,9 @@ class TestDispatch(unittest.TestCase):
         self.assertTrue(got.answer)
 
     def test_url_read_dispatches(self):
-        html = b"<html><title>T</title><body><p>Tim Cook is the CEO of Apple.</p></body></html>"
+        html = b"<html><title>T</title><body><p>Example Person is the CEO of ExampleCorp.</p></body></html>"
         got = rt.dispatch(
-            "Who is the CEO according to https://example.com/apple?",
+            "Who is the CEO according to https://example.com/example?",
             router="rule",
             url_fetch=lambda u, **kw: html,
             seed=0,
@@ -113,7 +113,7 @@ class TestDispatch(unittest.TestCase):
         )
         self.assertEqual(got.tool, "url_read")
         self.assertEqual(got.status, "ok")
-        self.assertIn("Tim Cook", got.answer or "")
+        self.assertIn("Example Person", got.answer or "")
 
 
 if __name__ == "__main__":

@@ -196,6 +196,21 @@ class TestComposeReply(unittest.TestCase):
             doc,
         ))
 
+    def test_paraphrase_ok_has_no_entity_names(self):
+        entityish = {
+            "france", "paris", "apple", "google", "alphabet", "cook",
+            "germany", "mars", "europe", "surrender", "lattice", "champ",
+        }
+        self.assertFalse(entityish & ws._PARAPHRASE_OK)
+
+    def test_question_terms_need_not_repeat_in_notes(self):
+        doc = "ExampleCorp\nExampleCorp is a technology company."
+        self.assertTrue(ws.reply_grounded(
+            "ExampleCorp makes technology products.",
+            doc,
+            question="What company makes ExampleCorp products?",
+        ))
+
 
 class TestCoreFit(unittest.TestCase):
     def test_who_rejects_bare_year(self):

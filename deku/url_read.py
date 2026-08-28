@@ -230,7 +230,7 @@ def finalize_reply(
         and summary
         and ws.core_in_reply(core, summary)
         and len(summary.split()) >= ws.MIN_SUMMARY_WORDS
-        and ws.reply_grounded(summary, doc)
+        and ws.reply_grounded(summary, doc, question=question)
     ):
         # Prefer lead when it covers the question at least as well.
         if lead and float(extract.term_score(question, lead)) >= float(
@@ -238,7 +238,7 @@ def finalize_reply(
         ):
             return lead
         return summary.strip()
-    if core and ws.reply_grounded(core, doc) and ws.core_fits_question(question, core):
+    if core and ws.reply_grounded(core, doc, question=question) and ws.core_fits_question(question, core):
         sent = ws.sentence_with_core(core, doc)
         if sent and (not lead or extract.term_score(question, sent) >= extract.term_score(question, lead)):
             return sent
@@ -247,7 +247,7 @@ def finalize_reply(
         return core.strip()
     # Prefer a classless grounded reply when MiniCPM core is usable.
     composed = ws.compose_reply(core or "", "", doc, question=question or "")
-    if composed and ws.reply_grounded(composed, doc):
+    if composed and ws.reply_grounded(composed, doc, question=question):
         return composed
     if not ws.classless_web_enabled():
         templ = ws.template_reply(question, core or "", doc)

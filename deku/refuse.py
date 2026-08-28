@@ -49,7 +49,7 @@ MESSAGES = {
     ),
     "age": (
         "I cannot answer vague age questions (for example \"how old is he?\"). "
-        "Ask with a full name: How old is Tim Cook?"
+        "Ask with a full name: How old is Jane Example?"
     ),
     "out_of_scope": (
         "I cannot handle that request with the available tools. "
@@ -174,7 +174,7 @@ def is_hard_refuse(question: str) -> bool:
     """True when hard_route should pick refuse (math/code/chitchat/deep/vague age).
 
     Underspecified path asks go to clarify instead of refuse.
-    Named \"How old is Tim Cook?\" is allowed through to web_search.
+    Named \"How old is Jane Example?\" is allowed through to web_search.
     """
     q = question or ""
     return bool(

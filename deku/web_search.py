@@ -212,8 +212,16 @@ def generic_hit_score(question: str, hit: dict) -> float:
             r"(?i)\b(film|movie|song|album|restaurant)\b", question or ""
         ):
             score -= 4.0
-    if re.search(r"(?i)emperor.?s birthday|public holiday|tennō tanjōbi", text):
-        score -= 10.0
+    # Birthday of an officeholder: down-rank observance/holiday pages.
+    if re.search(r"(?i)\b(birthday|birth date|date of birth)\b", question or ""):
+        if re.search(
+            r"(?i)\b(emperor|president|prime minister|pope)\b",
+            question or "",
+        ):
+            if re.search(r"(?i)\bpublic holiday\b", text):
+                score -= 10.0
+            elif re.match(r"(?i)^the .+'s birthday$", title.strip()):
+                score -= 10.0
 
     snip = (hit.get("snippet") or "").strip()
     if snip.startswith("Because of this") or (snip and snip[0].islower()):
@@ -1563,15 +1571,13 @@ _WEEKDAYS = frozenset("""
 monday tuesday wednesday thursday friday saturday sunday
 """.split())
 
-# Lowercase glue MiniCPM uses when paraphrasing attested facts.
+# Lowercase glue MiniCPM uses when paraphrasing attested facts (no entity names).
 _PARAPHRASE_OK = frozenset("""
 makes made making locate located named names holds held create created
 owns owned founded based known called became become company status
 largest deepest oceanic divisions engineer after parent holding
 marketed developed smartphones line run runs system located tower
-lattice mars champ france paris apple google alphabet cook
-ended end ends war world europe germany surrender concluded conclude
-ocean oceans earth five
+ended end ends concluded conclude ocean oceans
 """.split())
 
 _GROUND_STOP = frozenset("""
@@ -1620,24 +1626,35 @@ def content_tokens(text: str) -> list[str]:
     return out
 
 
+def _reply_question_terms(question: str) -> frozenset[str]:
+    """Content terms from the question — paraphrase need not re-hit the notes."""
+    return frozenset(
+        w
+        for w in re.findall(r"[a-z]{4,}", (question or "").casefold())
+        if w not in _GROUND_STOP and w not in _MONTHS
+    )
+
+
 _CAUSAL_GLUE = (
     "because", "due to", "which means", "therefore", "so that",
 )
 
 
-def reply_grounded(reply: str, document: str) -> bool:
+def reply_grounded(reply: str, document: str, *, question: str = "") -> bool:
     """True when claim tokens and non-glue content words appear in `document`.
 
     Catches invented dates ('May 30th', 'july') and invented content verbs
     ('annexed') while allowing light paraphrase ('makes', 'located').
     Causal glue ('because') must also be attested — blocks wrong explanations
     built from individually attested words.
+    Lowercase words from the question itself are not required in the notes.
     """
     if not (reply or "").strip() or not (document or "").strip():
         return False
     doc = extract.norm(document)
     low_reply = (reply or "").casefold()
     low_doc = (document or "").casefold()
+    q_terms = _reply_question_terms(question)
     for phrase in _CAUSAL_GLUE:
         if phrase in low_reply and phrase not in low_doc:
             return False
@@ -1645,6 +1662,8 @@ def reply_grounded(reply: str, document: str) -> bool:
         if not extract.has_term(extract.norm(tok), doc):
             return False
     for tok in content_tokens(reply):
+        if tok in q_terms:
+            continue
         if not extract.has_term(tok, doc):
             return False
     return True
@@ -1903,7 +1922,7 @@ def compose_reply(
         not numeric_core
         and summary
         and len(summary.split()) >= MIN_SUMMARY_WORDS
-        and reply_grounded(summary, document)
+        and reply_grounded(summary, document, question=question)
         and (
             not relation_kind(question)
             or predicate_supported(question, None, document)
@@ -1929,7 +1948,7 @@ def compose_reply(
     if core_ok and core:
         if not classless:
             templ = template_reply(question, core, document)
-            if templ and reply_grounded(templ, document):
+            if templ and reply_grounded(templ, document, question=question):
                 candidates.append((9.0, templ, "template"))
             elif templ and (
                 extract.norm(core) in extract.norm(document)
@@ -1971,7 +1990,7 @@ def compose_reply(
     if (not core_ok) and document:
         if classless:
             best = best_sentence_for_question(question, document)
-            if best and reply_grounded(best, document):
+            if best and reply_grounded(best, document, question=question):
                 candidates.append((9.0, best, "best_sentence"))
             elif best:
                 candidates.append((8.0, best, "best_sentence_loose"))
@@ -1981,7 +2000,7 @@ def compose_reply(
                 question, fact
             ):
                 templ = template_reply(question, fact, document)
-                if templ and reply_grounded(templ, document):
+                if templ and reply_grounded(templ, document, question=question):
                     candidates.append((9.5, templ, "fact_template"))
                 sent = sentence_with_core(fact, document, question=question)
                 if sent:
@@ -2351,7 +2370,7 @@ def run(question: str, *, router: str = "rule", k: int = 4,
         return out
     summary = minicpm_summarize(question, doc, seed=seed)
     out.detail["summary"] = summary
-    if summary and core and core_in_reply(core, summary) and not reply_grounded(summary, doc):
+    if summary and core and core_in_reply(core, summary) and not reply_grounded(summary, doc, question=question):
         out.detail["summary_rejected"] = "ungrounded_claims"
     reply = compose_reply(core, summary, doc, question=question)
     if (
@@ -2360,7 +2379,7 @@ def run(question: str, *, router: str = "rule", k: int = 4,
         and core
     ):
         typed_r = slot_mod.typed_reply(slot, question, core, doc)
-        if typed_r and reply_grounded(typed_r, doc):
+        if typed_r and reply_grounded(typed_r, doc, question=question):
             reply = typed_r
             out.detail["reply_source"] = "typed_template"
         elif typed_r and extract.norm(core) in extract.norm(doc):
