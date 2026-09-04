@@ -196,12 +196,7 @@ def generic_hit_score(question: str, hit: dict) -> float:
             break
 
     if qc.asks_who_office(question or ""):
-        if looks_role_object_title(title, question=question or ""):
-            score -= 15.0
-        if looks_historical_office(text):
-            score -= 10.0
-        if looks_current_office(text):
-            score += 6.0
+        score += _who_office_rank_delta(question or "", title, text, topic)
 
     if re.search(r"(?i)\(disambiguation\)", title):
         score -= 20.0
@@ -245,20 +240,6 @@ def generic_hit_score(question: str, hit: dict) -> float:
         if not re.fullmatch(re.escape(topic), title.strip(), flags=re.I):
             if not title.strip().casefold().startswith(topic.casefold()):
                 score -= 4.0
-
-    if qc.asks_who_office_corp(question or ""):
-        if topic and re.fullmatch(re.escape(topic), title.strip(), flags=re.I):
-            if not qc.has_office_role_corp(text):
-                score -= 8.0
-        elif (
-            topic
-            and topic.casefold() in text.casefold()
-            and qc.has_office_role_corp(text)
-        ):
-            if has_person_name(text) or re.search(
-                r"\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\b", text
-            ):
-                score += 6.0
 
     if re.search(r"(?i)\b(what company makes|manufacturer)\b", question or "") and topic:
         if re.fullmatch(re.escape(topic), title.strip(), flags=re.I):
@@ -335,22 +316,6 @@ def generic_hit_score(question: str, hit: dict) -> float:
                 r"(?i)\bemperor\b", title
             ) and not re.search(r"(?i)\bempress\b", title):
                 score -= 18.0
-
-    # who + office: prefer person bios that state the role over org/product pages.
-    if qc.asks_who_office(question or ""):
-        role_in_text = qc.has_office_role(text)
-        if has_person_name(title) and role_in_text:
-            # Person bio (John Ternus), not org/product titled with the topic.
-            if topic and hit_title_matches_topic(title, topic):
-                score -= 4.0
-            else:
-                score += 12.0
-        elif (
-            topic
-            and hit_title_matches_topic(title, topic)
-            and not has_person_name(title)
-        ):
-            score -= 12.0
 
     # who founded: prefer the org page (or founder bio) over product compounds.
     if qc.asks_who_founded(question or "") and topic:
@@ -733,37 +698,55 @@ def enrich_hits_for_answer(
 
 
 def looks_historical_office(text: str) -> bool:
-    """True when snippet describes a former / first / dated past office-holder."""
-    t = text or ""
-    if re.search(
-        r"(?i)\b(former|previously served|first ceo|"
-        r"was the (?:first )?(?:ceo|chief executive(?: officer)?|"
-        r"president|prime minister))\b",
-        t,
-    ):
-        return True
-    if re.search(
-        r"(?i)\bfrom\s+(?:[A-Za-z]+\s+)?\d{4}\s+to\s+(?:[A-Za-z]+\s+)?\d{4}\b",
-        t,
-    ):
-        return True
-    if re.search(r"(?i)\buntil\s+(?:[A-Za-z]+\s+)?\d{4}\b", t):
-        return True
-    return False
+    """Backward-compatible alias for past-tenure inspection."""
+    return qc.looks_past_tenure(text)
 
 
 def looks_current_office(text: str) -> bool:
-    """True when snippet signals incumbent / present tenure."""
-    t = text or ""
-    if looks_historical_office(t) and not re.search(r"(?i)\bsince\s+20\d{2}\b", t):
-        return False
-    return bool(
-        re.search(
-            r"(?i)\b(current|incumbent|has served as|serving as|"
-            r"since\s+20\d{2})\b",
-            t,
-        )
-    )
+    """Backward-compatible alias for present-tenure inspection."""
+    return qc.looks_present_tenure(text)
+
+
+def _who_office_rank_delta(
+    question: str, title: str, text: str, topic: str | None
+) -> float:
+    """Single who+office inspection block (role object, tenure, person vs org)."""
+    if not qc.asks_who_office(question or ""):
+        return 0.0
+    delta = 0.0
+    if looks_role_object_title(title, question=question or ""):
+        delta -= 15.0
+    if qc.looks_past_tenure(text):
+        delta -= 10.0
+    if qc.looks_present_tenure(text):
+        delta += 6.0
+    # Topic page without a role cue is a weak who-answer; person+role wins.
+    if qc.asks_who_office_corp(question or "") and topic:
+        if re.fullmatch(re.escape(topic), title.strip(), flags=re.I):
+            if not qc.has_office_role_corp(text):
+                delta -= 8.0
+        elif (
+            topic.casefold() in text.casefold()
+            and qc.has_office_role_corp(text)
+            and (
+                has_person_name(text)
+                or re.search(r"\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\b", text)
+            )
+        ):
+            delta += 6.0
+    role_in_text = qc.has_office_role(text)
+    if has_person_name(title) and role_in_text:
+        if topic and hit_title_matches_topic(title, topic):
+            delta -= 4.0
+        else:
+            delta += 12.0
+    elif (
+        topic
+        and hit_title_matches_topic(title, topic)
+        and not has_person_name(title)
+    ):
+        delta -= 12.0
+    return delta
 
 
 def rank_hits(question: str, hits: list[dict], k: int = 4) -> list[dict]:

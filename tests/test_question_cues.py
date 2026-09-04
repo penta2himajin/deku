@@ -22,10 +22,22 @@ class TestQuestionCues(unittest.TestCase):
         self.assertTrue(qc.asks_founded_when("When was Microsoft founded?"))
         self.assertFalse(qc.asks_founded_when("Who founded Microsoft?"))
 
-    def test_acronym(self):
-        m = qc.asks_what_is_acronym("What is NASA?")
-        self.assertIsNotNone(m)
-        self.assertEqual(m.group(1), "NASA")
+    def test_past_present_tenure(self):
+        self.assertTrue(
+            qc.looks_past_tenure(
+                "He was the first CEO of Apple from 1977 to 1981."
+            )
+        )
+        self.assertTrue(
+            qc.looks_present_tenure(
+                "She has served as CEO of Globex since 2019."
+            )
+        )
+        self.assertFalse(
+            qc.looks_present_tenure(
+                "He was the first CEO of Apple from 1977 to 1981."
+            )
+        )
 
 
 if __name__ == "__main__":

@@ -116,3 +116,44 @@ def asks_chemical_symbol(question: str) -> bool:
 
 def asks_what_is_acronym(question: str) -> re.Match[str] | None:
     return re.search(r"(?i)^\s*what is\s+([A-Z]{2,8})\??\s*$", question or "")
+
+
+# ---- tenure inspection (office asks; not answer templates) ----------------
+
+_OFFICE_INNER = (
+    r"(?:ceo|chief executive(?: officer)?|president|prime minister|"
+    r"pope|emperor)"
+)
+
+
+def looks_past_tenure(text: str) -> bool:
+    """True when text describes a former / dated past office-holder."""
+    t = text or ""
+    if re.search(
+        rf"(?i)\b(former|previously served|first {_OFFICE_INNER}|"
+        rf"was the (?:first )?{_OFFICE_INNER})\b",
+        t,
+    ):
+        return True
+    if re.search(
+        r"(?i)\bfrom\s+(?:[A-Za-z]+\s+)?\d{4}\s+to\s+(?:[A-Za-z]+\s+)?\d{4}\b",
+        t,
+    ):
+        return True
+    if re.search(r"(?i)\buntil\s+(?:[A-Za-z]+\s+)?\d{4}\b", t):
+        return True
+    return False
+
+
+def looks_present_tenure(text: str) -> bool:
+    """True when text signals incumbent / present tenure."""
+    t = text or ""
+    if looks_past_tenure(t) and not re.search(r"(?i)\bsince\s+20\d{2}\b", t):
+        return False
+    return bool(
+        re.search(
+            r"(?i)\b(current|incumbent|has served as|serving as|has been the|"
+            r"since\s+20\d{2})\b",
+            t,
+        )
+    )

@@ -2,7 +2,7 @@
   "backend": "gguf",
   "base_url": "https://api.modelbest.cn",
   "model": "MiniCPM5-2B-0822",
-  "when": "2026-09-04T17:53:23.008279+00:00",
+  "when": "2026-09-04T18:01:01.762778+00:00",
   "passed": 24,
   "total": 24,
   "rows": [
@@ -144,7 +144,7 @@
       "status": "ok",
       "reason": null,
       "answer": "John Ternus is the CEO of Apple.",
-      "elapsed_ms": 7238,
+      "elapsed_ms": 6843,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -172,7 +172,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The capital of France has been Paris since its liberation in 1944.",
-      "elapsed_ms": 4211,
+      "elapsed_ms": 4115,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -197,7 +197,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Apple Inc. is headquartered in Cupertino, California.",
-      "elapsed_ms": 3255,
+      "elapsed_ms": 3111,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -222,7 +222,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Tim Cook was born in Mobile, Alabama.",
-      "elapsed_ms": 4514,
+      "elapsed_ms": 4315,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -247,7 +247,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The population of the city proper was over 14 million as of 2023",
-      "elapsed_ms": 4623,
+      "elapsed_ms": 4704,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -273,7 +273,7 @@
       "status": "ok",
       "reason": null,
       "answer": "IPhone (1st generation) — After years of rumors and speculation, it was officially announced on January 9, 2007, and was released in the United States on June 29, 2007.",
-      "elapsed_ms": 4841,
+      "elapsed_ms": 5050,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -298,7 +298,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Founded in 1975 by Bill Gates and Paul Allen to market BASIC interpreters for the Altair 8800, Microsoft rose to dominate the PC operating system market with MS-DOS in the mid-1980s, followed by Windows.",
-      "elapsed_ms": 6251,
+      "elapsed_ms": 5476,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -323,7 +323,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Naruhito (born 23 February 1960) is Emperor of Japan.",
-      "elapsed_ms": 5734,
+      "elapsed_ms": 5074,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -348,7 +348,7 @@
       "status": "ok",
       "reason": null,
       "answer": "1. John Ternus is the CEO of Apple.\n2. Apple Inc. is headquartered in Cupertino, California.",
-      "elapsed_ms": 10109,
+      "elapsed_ms": 15213,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -373,7 +373,7 @@
       "status": "ok",
       "reason": null,
       "answer": "1. John Ternus is the CEO of Apple.\n2. The capital of France has been Paris since its liberation in 1944.",
-      "elapsed_ms": 11031,
+      "elapsed_ms": 11089,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -398,7 +398,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Bill Gates and Paul Allen founded Microsoft. Founded in 1975 by Bill Gates and Paul Allen to market BASIC interpreters for the Altair 8800, Microsoft rose to dominate the PC operating system market with MS-DOS in the mid-1980s, followed by Windows.",
-      "elapsed_ms": 9990,
+      "elapsed_ms": 11252,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -423,7 +423,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Tim Cook is the CEO of Apple Inc. Tim Cook was born in Mobile, Alabama.",
-      "elapsed_ms": 8234,
+      "elapsed_ms": 8291,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -447,8 +447,8 @@
       "tool": "multi_hop",
       "status": "ok",
       "reason": null,
-      "answer": "1. The last commit message is \"refactor: formalize extractors and calc; drop web shape shortcuts\".\n2. Kenya Nara (@penta2himajin) authored commit e658e8bc193d (\"refactor: formalize extractors and calc; drop web shape shortcuts\").",
-      "elapsed_ms": 98,
+      "answer": "1. The last commit message is \"refactor: share question cues and move chem/acronym extractors\".\n2. Kenya Nara (@penta2himajin) authored commit 946f9407dec6 (\"refactor: share question cues and move chem/acronym extractors\").",
+      "elapsed_ms": 90,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -472,8 +472,8 @@
       "tool": "url_read",
       "status": "ok",
       "reason": null,
-      "answer": "Apollo 11 was the first mission to land humans on the Moon. Cold War. Rice University football stadium There is no strife, no prejudice, no national conflict in outer space as yet.",
-      "elapsed_ms": 17049,
+      "answer": "Apollo 11 (July 16–24, 1969) was the American spaceflight that first landed humans on the Moon , and the fifth crewed mission of NASA 's Apollo program . In the late 1950s and early 1960s, the United States was engaged in the Cold War , a geopolitical rivalry with the Soviet Union . Rice University football stadium.",
+      "elapsed_ms": 14577,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -495,8 +495,8 @@
       "tool": "git_search",
       "status": "ok",
       "reason": null,
-      "answer": "The last commit message is \"refactor: formalize extractors and calc; drop web shape shortcuts\".",
-      "elapsed_ms": 49,
+      "answer": "The last commit message is \"refactor: share question cues and move chem/acronym extractors\".",
+      "elapsed_ms": 53,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -515,7 +515,7 @@
       "status": "ok",
       "reason": null,
       "answer": "A MiniCPM5-1B–oriented local task harness: small factual jobs (web facts, URL summaries, repo lookup, git/diff, weak multi-step plans) with explicit refusals when the request is out of scope (see README.md).",
-      "elapsed_ms": 70,
+      "elapsed_ms": 72,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -544,7 +544,7 @@
       "status": "ok",
       "reason": null,
       "answer": "PREFILL is set to \"ANSWER: \" in deku/extract.py.",
-      "elapsed_ms": 109,
+      "elapsed_ms": 107,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
