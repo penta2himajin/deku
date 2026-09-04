@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 
 from deku import extract
 from deku import lexical_core as lex
+from deku import question_cues as qc
 
 INTENTS = ("search", "extract", "refuse")
 INTENT_RE = re.compile(r"(?i)\b(search|extract|refuse)\b")
@@ -194,10 +195,7 @@ def generic_hit_score(question: str, hit: dict) -> float:
                 score -= 8.0
             break
 
-    if re.search(r"(?i)\bwho is\b", question or "") and re.search(
-        r"(?i)\b(ceo|chief executive|president|prime minister|pope|emperor)\b",
-        question or "",
-    ):
+    if qc.asks_who_office(question or ""):
         if looks_role_object_title(title, question=question or ""):
             score -= 15.0
         if looks_historical_office(text):
@@ -213,15 +211,13 @@ def generic_hit_score(question: str, hit: dict) -> float:
         ):
             score -= 4.0
     # Birthday of an officeholder: down-rank observance/holiday pages.
-    if re.search(r"(?i)\b(birthday|birth date|date of birth)\b", question or ""):
-        if re.search(
-            r"(?i)\b(emperor|president|prime minister|pope)\b",
-            question or "",
-        ):
-            if re.search(r"(?i)\bpublic holiday\b", text):
-                score -= 10.0
-            elif re.match(r"(?i)^the .+'s birthday$", title.strip()):
-                score -= 10.0
+    if qc.asks_birthday_strict(question or "") and qc.OFFICE_ROLE.search(
+        question or ""
+    ):
+        if re.search(r"(?i)\bpublic holiday\b", text):
+            score -= 10.0
+        elif re.match(r"(?i)^the .+'s birthday$", title.strip()):
+            score -= 10.0
 
     snip = (hit.get("snippet") or "").strip()
     if snip.startswith("Because of this") or (snip and snip[0].islower()):
@@ -250,16 +246,14 @@ def generic_hit_score(question: str, hit: dict) -> float:
             if not title.strip().casefold().startswith(topic.casefold()):
                 score -= 4.0
 
-    if re.search(r"(?i)\bwho is\b", question or "") and re.search(
-        r"(?i)\b(ceo|chief executive|president|prime minister)\b", question or ""
-    ):
+    if qc.asks_who_office_corp(question or ""):
         if topic and re.fullmatch(re.escape(topic), title.strip(), flags=re.I):
-            if not re.search(
-                r"(?i)\b(ceo|chief executive|president|prime minister)\b", text
-            ):
+            if not qc.has_office_role_corp(text):
                 score -= 8.0
-        elif topic and topic.casefold() in text.casefold() and re.search(
-            r"(?i)\b(ceo|chief executive|president|prime minister)\b", text
+        elif (
+            topic
+            and topic.casefold() in text.casefold()
+            and qc.has_office_role_corp(text)
         ):
             if has_person_name(text) or re.search(
                 r"\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\b", text
@@ -277,16 +271,8 @@ def generic_hit_score(question: str, hit: dict) -> float:
         ):
             score += 6.0
 
-    # When-founded / when-released: prefer the entity page (exact title) over
-    # compound near-misses ("X Foundation…", "X Foundry") and boost year cues.
-    want_when_founded = bool(
-        re.search(r"(?i)\bfounded\b", question or "")
-        and re.search(r"(?i)\bwhen\b", question or "")
-    )
-    want_when_released = bool(
-        re.search(r"(?i)\breleased\b", question or "")
-        and re.search(r"(?i)\bwhen\b", question or "")
-    )
+    want_when_founded = qc.asks_founded_when(question or "")
+    want_when_released = qc.asks_released_when(question or "")
     if topic and (want_when_founded or want_when_released):
         bare = re.sub(r"\s*\([^)]*\)\s*", " ", title).strip()
         if re.fullmatch(re.escape(topic), bare, flags=re.I) or re.fullmatch(
@@ -319,50 +305,40 @@ def generic_hit_score(question: str, hit: dict) -> float:
         score -= 12.0
 
     # Birthday of an officeholder: boost bios with birth dates / person titles.
-    if re.search(r"(?i)\b(birthday|birth date|date of birth)\b", question or ""):
-        if re.search(
-            r"(?i)\b(current|emperor|president|prime minister|pope)\b",
-            question or "",
-        ):
-            if re.search(r"(?i)\(born\s+\d|\bborn\s+(?:on\s+)?\d", text):
-                score += 8.0
-            if has_person_name(title) and not re.search(
-                r"(?i)\((given name|surname|name)\)", title
-            ):
-                score += 4.0
-            # Prefer the asked office over a differently titled relative.
-            role_m = re.search(
-                r"(?i)\b(emperor|empress|president|prime minister|pope)\b",
-                question or "",
-            )
-            if role_m:
-                role = role_m.group(1).casefold()
-                if re.search(
-                    rf"(?i)\bis\s+(?:the\s+)?{re.escape(role)}\b"
-                    rf"|\b{re.escape(role)}\s+of\b",
-                    text,
-                ):
-                    score += 12.0
-                # Spouse / emerita pages: title is a different office word.
-                if role == "emperor" and re.search(r"(?i)\bempress\b", title):
-                    score -= 18.0
-                elif role == "empress" and re.search(
-                    r"(?i)\bemperor\b", title
-                ) and not re.search(r"(?i)\bempress\b", title):
-                    score -= 18.0
-
-    # who + office: prefer person bios that state the role over org/product pages.
-    if re.search(r"(?i)\bwho is\b", question or "") and re.search(
-        r"(?i)\b(ceo|chief executive|president|prime minister|pope|emperor)\b",
+    if qc.asks_birthday_strict(question or "") and re.search(
+        r"(?i)\b(current|emperor|president|prime minister|pope)\b",
         question or "",
     ):
-        role_in_text = bool(
-            re.search(
-                r"(?i)\b(ceo|chief executive(?: officer)?|president|"
-                r"prime minister|pope|emperor)\b",
-                text,
-            )
+        if re.search(r"(?i)\(born\s+\d|\bborn\s+(?:on\s+)?\d", text):
+            score += 8.0
+        if has_person_name(title) and not re.search(
+            r"(?i)\((given name|surname|name)\)", title
+        ):
+            score += 4.0
+        # Prefer the asked office over a differently titled relative.
+        role_m = re.search(
+            r"(?i)\b(emperor|empress|president|prime minister|pope)\b",
+            question or "",
         )
+        if role_m:
+            role = role_m.group(1).casefold()
+            if re.search(
+                rf"(?i)\bis\s+(?:the\s+)?{re.escape(role)}\b"
+                rf"|\b{re.escape(role)}\s+of\b",
+                text,
+            ):
+                score += 12.0
+            # Spouse / emerita pages: title is a different office word.
+            if role == "emperor" and re.search(r"(?i)\bempress\b", title):
+                score -= 18.0
+            elif role == "empress" and re.search(
+                r"(?i)\bemperor\b", title
+            ) and not re.search(r"(?i)\bempress\b", title):
+                score -= 18.0
+
+    # who + office: prefer person bios that state the role over org/product pages.
+    if qc.asks_who_office(question or ""):
+        role_in_text = qc.has_office_role(text)
         if has_person_name(title) and role_in_text:
             # Person bio (John Ternus), not org/product titled with the topic.
             if topic and hit_title_matches_topic(title, topic):
@@ -377,7 +353,7 @@ def generic_hit_score(question: str, hit: dict) -> float:
             score -= 12.0
 
     # who founded: prefer the org page (or founder bio) over product compounds.
-    if re.search(r"(?i)\bwho founded\b", question or "") and topic:
+    if qc.asks_who_founded(question or "") and topic:
         bare = re.sub(r"\s*\([^)]*\)\s*", " ", title).strip()
         exact_org = bool(
             re.fullmatch(re.escape(topic), bare, flags=re.I)
@@ -610,35 +586,15 @@ def enrich_hits_for_answer(
 ) -> list[dict]:
     """Replace thin office/fragment snippets with Wikipedia page summaries."""
     fetch = summary_fn or wiki_page_summary
-    office = bool(re.search(
-        r"(?i)\b(ceo|president|prime minister|chief executive)\b",
-        question or "",
-    ))
-    want_when_year = bool(
-        re.search(r"(?i)\bwhen\b", question or "")
-        and not re.search(r"(?i)\bborn\b", question or "")
-    )
-    want_founded_when = bool(
-        re.search(r"(?i)\bfounded\b", question or "")
-        and re.search(r"(?i)\bwhen\b", question or "")
-    )
-    want_released_when = bool(
-        re.search(r"(?i)\breleased\b", question or "")
-        and re.search(r"(?i)\bwhen\b", question or "")
-    )
-    want_who_founded = bool(re.search(r"(?i)\bwho founded\b", question or ""))
-    want_born_where = bool(
-        re.search(r"(?i)\bborn\b", question or "")
-        and re.search(r"(?i)\bwhere\b", question or "")
-    )
-    want_population = bool(re.search(r"(?i)\bpopulation\b", question or ""))
-    want_birthday = bool(
-        re.search(r"(?i)\b(birthday|birth date|date of birth|how old)\b", question or "")
-    )
-    want_born_when = bool(
-        re.search(r"(?i)\bwhen\b", question or "")
-        and re.search(r"(?i)\bborn\b", question or "")
-    )
+    office = qc.asks_office_role(question or "")
+    want_when_year = qc.asks_when_year(question or "")
+    want_founded_when = qc.asks_founded_when(question or "")
+    want_released_when = qc.asks_released_when(question or "")
+    want_who_founded = qc.asks_who_founded(question or "")
+    want_born_where = qc.asks_born_where(question or "")
+    want_population = qc.asks_population(question or "")
+    want_birthday = qc.asks_birthday(question or "")
+    want_born_when = qc.asks_born_when(question or "")
     out = []
     for h in hits:
         item = dict(h)
@@ -847,49 +803,47 @@ def population_figure_grounded(core: str, document: str) -> bool:
 
 
 def fact_core_from_doc(question: str, document: str) -> str | None:
-    """Lexical short core from notes (question-guided patterns + acronym/chem)."""
+    """Lexical short core from notes (question-guided extractors)."""
     doc = document or ""
     if not doc:
         return None
     typed = lex.lexical_core_from_doc(question or "", doc)
     if typed and core_fits_question(question, typed):
         return typed
-    if re.search(r"(?i)\bchemical symbol\b", question or ""):
-        for pat in (
-            r"(?i)\b(?:chemical )?symbol (?:is |of |:|=)?\s*([A-Z][a-z]?)\b",
-            r"(?i)\bsymbol\s+([A-Z][a-z]?)\b",
-        ):
-            m = re.search(pat, doc)
-            if m and extract.verify(m.group(1), doc):
-                return m.group(1)
-    acr_m = re.search(r"(?i)^\s*what is\s+([A-Z]{2,8})\??\s*$", question or "")
-    if acr_m:
-        acr = acr_m.group(1)
-        mm = re.search(
-            rf"(?i)((?:[A-Z][A-Za-z]+(?:\s+(?:and\s+)?[A-Z][A-Za-z]+){{1,8}}))"
-            rf"\s*\(\s*{re.escape(acr)}\s*\)",
-            doc,
-        )
-        if mm:
-            core = re.sub(r"\s+", " ", mm.group(1)).strip()
-            if core.split()[0].casefold() == acr.casefold():
-                core = " ".join(core.split()[1:]).strip()
-            if len(core.split()) >= 3 and extract.verify(core.split()[0], doc):
-                return core
-        mm = re.search(
-            rf"(?i)\b{re.escape(acr)}\b\s+is\s+(?:an?\s+|the\s+)?([^.]+)",
-            doc,
-        )
-        if mm:
-            core = mm.group(1).strip().rstrip(",;:")
-            if re.search(r"(?i)\bU\.S\.\s*$", core):
-                rest = doc[mm.end():]
-                m2 = re.match(r"\s*([^.]+)", rest)
-                if m2:
-                    core = (core + " " + m2.group(1)).strip()
-            if len(core.split()) >= 3 and extract.verify(core.split()[0], doc):
-                return core
     return None
+
+
+def _pack_sentence_score(sent: str, question: str) -> float:
+    """Prefer evidence sentences for packing (inspection, not answering)."""
+    s = (sent or "").strip()
+    if not s:
+        return -1.0
+    q = question or ""
+    score = float(extract.term_score(q, s))
+    has_digit = bool(re.search(r"\d", s))
+    if qc.asks_when_year(q) or qc.asks_founded_when(q) or qc.asks_released_when(q):
+        if re.search(r"\b(1[89]\d{2}|20\d{2})\b", s):
+            score += 8.0
+        elif has_digit:
+            score += 2.0
+    if qc.asks_birthday_strict(q) and re.search(
+        r"(?i)\(born\s+\d|\bborn\s+(?:on\s+)?\d", s
+    ):
+        score += 10.0
+    if qc.asks_population(q) and re.search(
+        r"(?i)\bpopulation\b.*\d|\d[\d.,]*\s*(?:million|billion)", s
+    ):
+        score += 10.0
+    if qc.asks_capital(q) and re.search(r"(?i)\bis the capital\b", s):
+        score += 10.0
+    if qc.asks_born_where(q) and re.search(
+        r"(?i)\bborn\b(?:[^.]{0,80}?)\bin\s+(?:the\s+city\s+of\s+)?[A-Z]",
+        s,
+    ):
+        score += 10.0
+    if has_person_name(s) and len(s.split()) >= 5:
+        score += 1.5
+    return score
 
 
 def hits_to_document(hits: list[dict], *, snippet_chars: int = 320, question: str = "") -> str:
@@ -901,51 +855,16 @@ def hits_to_document(hits: list[dict], *, snippet_chars: int = 320, question: st
         snip = (h.get("snippet") or "").strip()
         limit = 560 if h.get("enriched") else snippet_chars
         if len(snip) > limit:
-            # Prefer keeping a sentence that answers the question shape.
-            kept = None
-            if re.search(r"(?i)\bwhen\b", question or ""):
-                for sent in re.split(r"(?<=[.!?])\s+", snip):
-                    if re.search(r"\b(1[89]\d{2}|20\d{2})\b", sent):
-                        kept = sent.strip()
-                        break
-            if not kept and re.search(
-                r"(?i)\b(birthday|birth date|date of birth)\b", question or ""
-            ):
-                for sent in re.split(r"(?<=[.!?])\s+", snip):
-                    if re.search(r"(?i)\(born\s+\d|\bborn\s+(?:on\s+)?\d", sent):
-                        kept = sent.strip()
-                        break
-            if not kept and re.search(r"(?i)\bpopulation\b", question or ""):
-                for sent in re.split(r"(?<=[.!?])\s+", snip):
-                    if re.search(
-                        r"(?i)\bpopulation\b.*\d|\d[\d.,]*\s*(?:million|billion)",
-                        sent,
-                    ):
-                        kept = sent.strip()
-                        break
-            if not kept and re.search(r"(?i)\bcapital of\b", question or ""):
-                for sent in re.split(r"(?<=[.!?])\s+", snip):
-                    if re.search(r"(?i)\bis the capital\b", sent):
-                        kept = sent.strip()
-                        break
-            if not kept and re.search(r"(?i)\bborn\b", question or ""):
-                for sent in re.split(r"(?<=[.!?])\s+", snip):
-                    if re.search(
-                        r"(?i)\bborn\b(?:[^.]{0,80}?)\bin\s+"
-                        r"(?:the\s+city\s+of\s+)?[A-Z]",
-                        sent,
-                    ):
-                        kept = sent.strip()
-                        break
-            if not kept:
-                for sent in re.split(r"(?<=[.!?])\s+", snip):
-                    if has_person_name(sent) and len(sent.split()) >= 5:
-                        kept = sent.strip()
-                        break
-            if kept and len(kept) <= limit:
-                snip = kept
+            best = None
+            best_sc = -1.0
+            for sent in re.split(r"(?<=[.!?])\s+", snip):
+                sc = _pack_sentence_score(sent, question)
+                if sc > best_sc:
+                    best_sc, best = sc, sent.strip()
+            if best and len(best) <= limit and best_sc > 0:
+                snip = best
             else:
-                snip = (kept or snip)[:limit].rsplit(" ", 1)[0] + "…"
+                snip = (best or snip)[:limit].rsplit(" ", 1)[0] + "…"
         if title and snip and title.casefold() not in snip[:120].casefold():
             snip = f"{title} — {snip}"
         parts.append(
@@ -1021,9 +940,7 @@ def search_duckduckgo(query: str, limit: int = 5) -> list[dict]:
     return hits
 
 
-ROLE_NOISE = re.compile(
-    r"(?i)\b(ceo|cfo|cto|founder|president|prime minister|chairman|company|parent|owner)\b"
-)
+ROLE_NOISE = qc.SEARCH_ROLE_NOISE
 
 
 def wiki_friendly_query(query: str) -> str:
@@ -1673,7 +1590,7 @@ def core_fits_question(question: str, core: str | None) -> bool:
             pass
         else:
             return False
-    if re.search(r"(?i)\bwho founded\b", question or ""):
+    if qc.asks_who_founded(question or ""):
         # Founders are people (or "A and B"), not dates / years.
         if re.search(r"\d{4}", c) and not re.search(
             r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+", c
@@ -1694,11 +1611,11 @@ def core_fits_question(question: str, core: str | None) -> bool:
             return False
     elif re.search(r"(?i)\bwhen\b", question or "") and not re.search(r"\d", c):
         return False
-    if re.search(r"(?i)\b(birthday|birth date|date of birth)\b", question or "") and not re.search(
+    if qc.asks_birthday_strict(question or "") and not re.search(
         r"\d", c
     ):
         return False
-    if re.search(r"(?i)\bpopulation\b", question or "") and not re.search(r"\d", c):
+    if qc.asks_population(question or "") and not re.search(r"\d", c):
         return False
     if re.search(r"(?i)\b(headquarters?|headquartered|based)\b", question or ""):
         # Org named in the question is never the place answer.
@@ -1740,7 +1657,7 @@ def core_fits_question(question: str, core: str | None) -> bool:
             return False
         if len(c) < 3:
             return False
-    if re.search(r"(?i)\bchemical symbol\b", question or ""):
+    if qc.asks_chemical_symbol(question or ""):
         # Atomic numbers are not chemical symbols.
         if re.fullmatch(r"\d+", c):
             return False

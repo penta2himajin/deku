@@ -39,7 +39,6 @@ class TestLexicalCore(unittest.TestCase):
         got = lex.lexical_core_from_doc("When was Microsoft founded?", doc)
         self.assertEqual(got, "1975")
 
-
     def test_founded_year_by_names(self):
         doc = (
             "Microsoft\n"
@@ -47,6 +46,33 @@ class TestLexicalCore(unittest.TestCase):
         )
         got = lex.lexical_core_from_doc("Who founded Microsoft?", doc)
         self.assertEqual(got, "Bill Gates and Paul Allen")
+
+    def test_who_is_named_title(self):
+        doc = (
+            "Tim Cook\n"
+            "Timothy Donald Cook is an American business executive.\n"
+        )
+        self.assertEqual(
+            lex.extract_person("Who is Tim Cook?", doc),
+            "Tim Cook",
+        )
+
+    def test_chemical_symbol(self):
+        doc = "Gold\nThe chemical symbol of gold is Au.\n"
+        self.assertEqual(
+            lex.extract_symbol("What is the chemical symbol for gold?", doc),
+            "Au",
+        )
+
+    def test_acronym_expansion(self):
+        doc = (
+            "NASA\n"
+            "The National Aeronautics and Space Administration (NASA) is an agency.\n"
+        )
+        self.assertIn(
+            "National Aeronautics",
+            lex.extract_acronym_expansion("What is NASA?", doc) or "",
+        )
 
     def test_extract_date_public(self):
         doc = "Naruhito\nNaruhito (born 23 February 1960) is Emperor of Japan.\n"
@@ -59,6 +85,14 @@ class TestLexicalCore(unittest.TestCase):
 
     def test_birth_date_alias_gone(self):
         self.assertFalse(hasattr(lex, "birth_date_from_doc"))
+
+
+class TestSlotsRemoved(unittest.TestCase):
+    def test_slots_module_gone(self):
+        import importlib
+
+        with self.assertRaises(ModuleNotFoundError):
+            importlib.import_module("deku.slots")
 
 
 if __name__ == "__main__":

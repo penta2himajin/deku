@@ -121,6 +121,21 @@ def extract_place(question: str, doc: str) -> str | None:
 def extract_person(question: str, doc: str) -> str | None:
     """Pull a grounded person name from ``doc``."""
     title_line = doc.splitlines()[0].strip() if doc else ""
+    # "Who is Tim Cook?" + biography titled Tim Cook → the title.
+    who_is = re.match(r"(?i)^\s*who is\s+(.+?)\??\s*$", question or "")
+    if who_is and title_line:
+        asked = who_is.group(1).strip()
+        asked = re.sub(r"(?i)^(the)\s+", "", asked).strip()
+        if (
+            extract.norm(asked) == extract.norm(title_line)
+            or extract.norm(asked) == extract.norm(
+                re.sub(r"\s*\([^)]*\)\s*", " ", title_line).strip()
+            )
+        ) and (
+            _has_person_name(title_line)
+            or re.fullmatch(r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*", title_line)
+        ):
+            return title_line
     if (
         re.search(r"(?i)\bwho\b", question or "")
         and re.search(
@@ -229,6 +244,61 @@ def extract_org(question: str, doc: str) -> str | None:
     return None
 
 
+def extract_symbol(question: str, doc: str) -> str | None:
+    """Pull a grounded chemical-symbol-like token from ``doc``."""
+    if not re.search(r"(?i)\bchemical symbol\b", question or ""):
+        return None
+    for pat in (
+        r"(?i)\b(?:chemical )?symbol\s+of\s+\w+\s+is\s+(?-i:([A-Z][a-z]?))\b",
+        r"(?i)\b(?:chemical )?symbol\s+(?:for\s+\w+\s+)?is\s+(?-i:([A-Z][a-z]?))\b",
+        r"(?i)\b(?:chemical )?symbol\s*(?:is|:|=)\s*(?-i:([A-Z][a-z]?))\b",
+        r"(?i)\b(?:with\s+)?(?:chemical )?symbol\s+(?-i:([A-Z][a-z]?))\b",
+    ):
+        m = re.search(pat, doc)
+        if not m:
+            continue
+        sym = m.group(1)
+        # Reject accidental lowercase matches that slipped past.
+        if not re.fullmatch(r"[A-Z][a-z]?", sym):
+            continue
+        if extract.verify(sym, doc):
+            return sym
+    return None
+
+
+def extract_acronym_expansion(question: str, doc: str) -> str | None:
+    """Pull a grounded expansion for ``What is ACRONYM?`` asks."""
+    acr_m = re.search(r"(?i)^\s*what is\s+([A-Z]{2,8})\??\s*$", question or "")
+    if not acr_m:
+        return None
+    acr = acr_m.group(1)
+    mm = re.search(
+        rf"(?i)((?:[A-Z][A-Za-z]+(?:\s+(?:and\s+)?[A-Z][A-Za-z]+){{1,8}}))"
+        rf"\s*\(\s*{re.escape(acr)}\s*\)",
+        doc,
+    )
+    if mm:
+        core = re.sub(r"\s+", " ", mm.group(1)).strip()
+        if core.split()[0].casefold() == acr.casefold():
+            core = " ".join(core.split()[1:]).strip()
+        if len(core.split()) >= 3 and extract.verify(core.split()[0], doc):
+            return core
+    mm = re.search(
+        rf"(?i)\b{re.escape(acr)}\b\s+is\s+(?:an?\s+|the\s+)?([^.]+)",
+        doc,
+    )
+    if mm:
+        core = mm.group(1).strip().rstrip(",;:")
+        if re.search(r"(?i)\bU\.S\.\s*$", core):
+            rest = doc[mm.end():]
+            m2 = re.match(r"\s*([^.]+)", rest)
+            if m2:
+                core = (core + " " + m2.group(1)).strip()
+        if len(core.split()) >= 3 and extract.verify(core.split()[0], doc):
+            return core
+    return None
+
+
 def extractors_for_question(question: str) -> list:
     """Order extractors to try for ``question`` (cues only; no slot labels)."""
     q = question or ""
@@ -243,6 +313,10 @@ def extractors_for_question(question: str) -> list:
         fns.append(extract_number)
     if re.search(r"(?i)\b(what company|makes the|manufacturer)\b", q):
         fns.append(extract_org)
+    if re.search(r"(?i)\bchemical symbol\b", q):
+        fns.append(extract_symbol)
+    if re.search(r"(?i)^\s*what is\s+[A-Z]{2,8}\??\s*$", q):
+        fns.append(extract_acronym_expansion)
     if re.search(r"(?i)\bwhen\b", q):
         fns.append(extract_date)
     if re.search(r"(?i)\bcapital of|headquarter|based in|located\b", q):
@@ -255,7 +329,15 @@ def extractors_for_question(question: str) -> list:
         if fn not in seen:
             seen.add(fn)
             ordered.append(fn)
-    for fn in (extract_person, extract_date, extract_place, extract_number, extract_org):
+    for fn in (
+        extract_person,
+        extract_date,
+        extract_place,
+        extract_number,
+        extract_org,
+        extract_symbol,
+        extract_acronym_expansion,
+    ):
         if fn not in seen:
             ordered.append(fn)
     return ordered

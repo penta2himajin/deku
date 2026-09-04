@@ -270,6 +270,15 @@ def core_from_result(got) -> str | None:
         core = core.split(".", 1)[0].strip()
     if core and len(core.split()) <= 6:
         return core
+    # Long "core" prose: prefer an embedded person name (not Corp/Inc).
+    if core:
+        for m in re.finditer(
+            r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", core
+        ):
+            name = m.group(1)
+            if re.search(r"(?i)\b(inc|corp|llc|ltd|company|group)\b", name):
+                continue
+            return _reject_office_glue(name)
     ans = (getattr(got, "answer", None) or "").strip()
     # "The capital of Japan is Tokyo." → Tokyo (stop at sentence end)
     m = re.search(
@@ -279,14 +288,15 @@ def core_from_result(got) -> str | None:
     )
     if m:
         return _reject_office_glue(m.group(1))
-    # "The CEO of Apple is Tim Cook." → Tim Cook
-    m = re.search(
-        r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s*\.?\s*$", ans
-    )
-    if m:
-        return _reject_office_glue(m.group(1))
-    m = re.search(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", ans)
-    return _reject_office_glue(m.group(1) if m else None)
+    # Prefer person-shaped spans; skip Corp/Inc tails ("… of Apple Inc.").
+    for m in re.finditer(
+        r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", ans
+    ):
+        name = m.group(1)
+        if re.search(r"(?i)\b(inc|corp|llc|ltd|company|group)\b", name):
+            continue
+        return _reject_office_glue(name)
+    return None
 
 
 def _core_from_result(got) -> str | None:
