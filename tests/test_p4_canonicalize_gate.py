@@ -69,16 +69,18 @@ class TestConfidenceGate(unittest.TestCase):
         top = ws.rank_hits(q, hits, k=2)
         self.assertEqual(top[0]["title"], "Shigeru Ishiba")
 
-    def test_office_core_rejects_role_object(self):
-        hit = {
-            "title": "Prime Minister's Official Car (Japan)",
-            "snippet": "state car",
-            "url": "u",
-        }
-        doc = "Prime Minister's Official Car (Japan)\nThe official state car."
-        self.assertIsNone(ws.office_core_from_hit(
-            "Who is the prime minister of Japan?", hit, doc
-        ))
+    def test_role_object_title_rejected_by_looks(self):
+        self.assertTrue(
+            ws.looks_role_object_title(
+                "Prime Minister's Official Car (Japan)",
+                question="Who is the prime minister of Japan?",
+            )
+        )
+        core = ws.fact_core_from_doc(
+            "Who is the prime minister of Japan?",
+            "Prime Minister's Official Car (Japan)\nThe official state car.",
+        )
+        self.assertNotEqual(core, "Prime Minister's Official Car (Japan)")
 
 
 class TestJoinAndPartial(unittest.TestCase):

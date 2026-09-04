@@ -40,12 +40,25 @@ class TestLexicalCore(unittest.TestCase):
         self.assertEqual(got, "1975")
 
 
-class TestSlotsRemoved(unittest.TestCase):
-    def test_slots_module_gone(self):
-        import importlib
+    def test_founded_year_by_names(self):
+        doc = (
+            "Microsoft\n"
+            "Founded in 1975 by Bill Gates and Paul Allen to market BASIC.\n"
+        )
+        got = lex.lexical_core_from_doc("Who founded Microsoft?", doc)
+        self.assertEqual(got, "Bill Gates and Paul Allen")
 
-        with self.assertRaises(ModuleNotFoundError):
-            importlib.import_module("deku.slots")
+    def test_extract_date_public(self):
+        doc = "Naruhito\nNaruhito (born 23 February 1960) is Emperor of Japan.\n"
+        self.assertEqual(
+            lex.extract_date(
+                "What is the birthday of the current Emperor of Japan?", doc
+            ),
+            "23 February 1960",
+        )
+
+    def test_birth_date_alias_gone(self):
+        self.assertFalse(hasattr(lex, "birth_date_from_doc"))
 
 
 if __name__ == "__main__":

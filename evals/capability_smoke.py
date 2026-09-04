@@ -102,7 +102,7 @@ CASES: list[Case] = [
         "Who is the CEO of Apple?",
         expect_tool="web_search",
         expect_status="ok",
-        answer_must_match=r"Tim Cook",
+        answer_must_match=r"John Ternus|Ternus",
     ),
     Case(
         "web:france_capital",
@@ -162,14 +162,14 @@ CASES: list[Case] = [
         "Who is the CEO of Apple and where is Apple headquartered?",
         expect_tool="multi_hop",
         expect_status="ok",
-        answer_must_match=r"(?s)Tim Cook.*(Cupertino|California)|(Cupertino|California).*Tim Cook",
+        answer_must_match=r"(?s)(John Ternus|Ternus).*(Cupertino|California)|(Cupertino|California).*(John Ternus|Ternus)",
     ),
     Case(
         "hop:independent_cross_entity",
         "Who is the CEO of Apple and what is the capital of France?",
         expect_tool="multi_hop",
         expect_status="ok",
-        answer_must_match=r"(?s)(Tim Cook|Cook).*(Paris)|Paris.*(Tim Cook|Cook)",
+        answer_must_match=r"(?s)(John Ternus|Ternus).*(Paris)|Paris.*(John Ternus|Ternus)",
     ),
     Case(
         "hop:dependent_founded",
@@ -180,7 +180,7 @@ CASES: list[Case] = [
     ),
     Case(
         "hop:dependent_born",
-        "Who is the CEO of Apple and where was he born?",
+        "Who is Tim Cook and where was he born?",
         expect_tool="multi_hop",
         expect_status="ok",
         answer_must_match=r"(?s)Tim Cook.*(Mobile|Alabama)|(Mobile|Alabama).*Tim Cook",

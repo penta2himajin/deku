@@ -11,10 +11,11 @@ Deterministic (or lightly lexical) machinery:
 - **Route** — pick a tool or `refuse` (bare ALLCAPS / project name via
   discovery under `--root`; soft dir cues stay product-agnostic overview words)
 - **Refuse** — fixed English reasons (math, code, chitchat, deep_reasoning, out_of_scope)
-- **Tools** — `web_search`, `dir_search`, `git_search`, `diff_search`, `url_read`
-- **Weak multi-step** — propose clause→tool steps then validate (allow-list, ≤3 steps, bind rules; tools include `url_read`); optional bind of prior hop core; integrate; expose `cores` / `next_hint` for parent agents (`deku.hints.next_hint_for` maps status + abstain_reason → action codes)
+- **Tools** — `web_search`, `dir_search`, `git_search`, `diff_search`, `url_read`,
+  `calc` (structured ops only, e.g. `years_since`; free-form math stays refuse)
+- **Weak multi-step** — propose clause→tool steps then validate (allow-list, ≤3 steps, bind rules; tools include `url_read` / `calc`); optional bind of prior hop core; integrate; expose `cores` / `next_hint` for parent agents (`deku.hints.next_hint_for` maps status + abstain_reason → action codes)
 - **Audience** — refuse prose for humans, `refused:<reason>` codes for agents (`--audience` / `DEKU_AUDIENCE`)
-- **Lexical core** — regex extractors pull a grounded core from the document (dates, places, numbers, org/person cues); `compose_reply` picks summary / sentence / core when grounded; no closed slot labels or template replies
+- **Lexical extractors** — named surface extractors (`extract_date`, `extract_person`, …) pull grounded spans from a document; question cues choose which to try. Special cases may be formalized as generic tools (e.g. named age → `web_search` then `calc`). Forbidden across **all** tools: closed gloss tables; product control via POS / noun-class / slot labels; shape-specialized reply shortcuts embedded in a tool
 - **Optional Needle** — tool routing only; never free-form answers or plans. Product smokes measure the rule path without Needle
 - **Hierarchical summary** — map/reduce with extractive leaf anchors (MiniCPM only compresses short notes)
 
@@ -51,7 +52,7 @@ Binary acquisition: document installing `llama-server` on PATH; do not vendor la
 
 ## In-scope agent modules
 
-**In scope:** `route`, `refuse`, `render`, `web_search`, `dir_search`, `git_search`, `diff_search`, `url_read`, `multi_hop`, `hier_summary`, `orchestrate`, small related unit tests.
+**In scope:** `route`, `refuse`, `render`, `web_search`, `dir_search`, `git_search`, `diff_search`, `url_read`, `calc`, `multi_hop`, `hier_summary`, `orchestrate`, `lexical_core`, small related unit tests.
 
 **Parent-agent contract:** `deku ask --json --audience agent` returns a **slim**
 envelope (`envelope: "slim"`): `status`, `tool`, `answer`, `reason`, `plan_id`,

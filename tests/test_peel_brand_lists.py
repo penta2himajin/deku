@@ -32,12 +32,16 @@ class TestConcreteTopicCamelCase(unittest.TestCase):
 
 
 class TestSpouseNoiseGeneric(unittest.TestCase):
-    def test_prefer_answer_span_skips_spouse_not_named_person(self):
-        snip = (
+    def test_best_sentence_skips_spouse_not_named_person(self):
+        doc = (
+            "France\n"
             "Alice Example is the wife of the president. "
-            "Bob Example is the president of France."
+            "Bob Example is the president of France.\n"
         )
-        got = ws.prefer_answer_span(snip, "Who is the president of France?")
+        got = ws.best_sentence_for_question(
+            "Who is the president of France?", doc
+        )
+        self.assertIsNotNone(got)
         self.assertIn("Bob Example", got)
         self.assertNotIn("wife", got.casefold())
 

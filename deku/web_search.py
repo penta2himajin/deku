@@ -351,6 +351,53 @@ def generic_hit_score(question: str, hit: dict) -> float:
                 ) and not re.search(r"(?i)\bempress\b", title):
                     score -= 18.0
 
+    # who + office: prefer person bios that state the role over org/product pages.
+    if re.search(r"(?i)\bwho is\b", question or "") and re.search(
+        r"(?i)\b(ceo|chief executive|president|prime minister|pope|emperor)\b",
+        question or "",
+    ):
+        role_in_text = bool(
+            re.search(
+                r"(?i)\b(ceo|chief executive(?: officer)?|president|"
+                r"prime minister|pope|emperor)\b",
+                text,
+            )
+        )
+        if has_person_name(title) and role_in_text:
+            # Person bio (John Ternus), not org/product titled with the topic.
+            if topic and hit_title_matches_topic(title, topic):
+                score -= 4.0
+            else:
+                score += 12.0
+        elif (
+            topic
+            and hit_title_matches_topic(title, topic)
+            and not has_person_name(title)
+        ):
+            score -= 12.0
+
+    # who founded: prefer the org page (or founder bio) over product compounds.
+    if re.search(r"(?i)\bwho founded\b", question or "") and topic:
+        bare = re.sub(r"\s*\([^)]*\)\s*", " ", title).strip()
+        exact_org = bool(
+            re.fullmatch(re.escape(topic), bare, flags=re.I)
+            or re.fullmatch(
+                rf"{re.escape(topic)}(?:\s*,?\s*Inc\.?)?", bare, flags=re.I
+            )
+        )
+        if exact_org:
+            score += 12.0 if re.search(
+                r"(?i)\bfounded\s+by\b|\bco-?founders?\b", text
+            ) else 6.0
+        elif hit_title_matches_topic(title, topic) and not exact_org:
+            score -= 8.0
+        if (
+            has_person_name(title)
+            and topic.casefold() in text.casefold()
+            and re.search(r"(?i)\b(co-?founder|founded)\b", text)
+        ):
+            score += 8.0
+
     return score
 
 
@@ -373,7 +420,7 @@ def has_person_name(text: str) -> bool:
     """
     t = text or ""
     if re.search(
-        r"(?i)\b(inc\.?|corp\.?|corporation|ltd\.?|limited|llc|gmbh|"
+        r"(?i)\b(inc\.?|corp\.?|corps|corporation|ltd\.?|limited|llc|gmbh|"
         r"entertainment|motors?|company|group|holdings|interactive|"
         r"industries|technologies|systems)\b",
         t,
@@ -553,47 +600,6 @@ def wiki_page_extract(title: str, *, chars: int | None = 2500) -> str:
     except Exception:
         pass
     return wiki_page_summary(title)
-
-
-def age_years_from_birth_date(birth: str, *, today=None) -> int | None:
-    """Compute whole years of age from a prose birth date (harness-side)."""
-    from datetime import date
-
-    s = (birth or "").strip()
-    if not s:
-        return None
-    months = {
-        name.lower(): i
-        for i, name in enumerate(
-            (
-                "January February March April May June July August "
-                "September October November December"
-            ).split(),
-            start=1,
-        )
-    }
-    m = re.search(
-        r"(?i)^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$",
-        s,
-    )
-    if m:
-        day, mon, year = int(m.group(1)), months.get(m.group(2).lower()), int(m.group(3))
-    else:
-        m = re.search(r"(?i)^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$", s)
-        if not m:
-            return None
-        mon, day, year = months.get(m.group(1).lower()), int(m.group(2)), int(m.group(3))
-    if not mon or not (1 <= day <= 31):
-        return None
-    try:
-        born = date(year, mon, day)
-    except ValueError:
-        return None
-    now = today or date.today()
-    years = now.year - born.year
-    if (now.month, now.day) < (born.month, born.day):
-        years -= 1
-    return years if years >= 0 else None
 
 
 def enrich_hits_for_answer(
@@ -816,124 +822,6 @@ def rank_hits_scored(
     return scored[:k]
 
 
-def office_core_from_hit(question: str, hit: dict, document: str) -> str | None:
-    """Deterministic person core from office/presidency page titles."""
-    if not re.search(
-        r"(?i)\b(president|ceo|prime minister|pope|emperor)\b", question or ""
-    ):
-        return None
-    title = (hit.get("title") or "").strip()
-    if looks_role_object_title(title, question=question or ""):
-        return None
-    if re.search(r"(?i)^current\s+(pope|president|prime minister)\b", title):
-        return None
-    for pat in (r"(?i)^presidency of (.+)$", r"(?i)^premiership of (.+)$"):
-        m = re.search(pat, title)
-        if m:
-            name = m.group(1).strip()
-            if name and (
-                extract.norm(name) in extract.norm(document)
-                or extract.norm(name) in extract.norm(title)
-            ):
-                return name
-    if re.search(r"(?i)^pope\s+\S+", title) and not re.search(
-        r"(?i)^pope$", title
-    ):
-        return title
-    if has_person_name(title) and re.search(
-        r"(?i)\b(president|ceo|prime minister|pope|emperor)\b", document or ""
-    ):
-        # Require the person name to appear in a body sentence, not title alone.
-        bare = re.sub(r"\s*\([^)]*\)\s*", " ", title).strip()
-        body = "\n".join(
-            ln for ln in (document or "").splitlines()
-            if ln.strip() and ln.strip().casefold() != title.casefold()
-        )
-        if bare and extract.norm(bare) in extract.norm(body):
-            return title
-        return None
-    return None
-
-
-def prefer_answer_span(snippet: str, question: str) -> str:
-    """Pull a self-contained answer sentence out of a messy wiki snippet."""
-    snip = snippet or ""
-    if re.search(r"(?i)\bboiling point\b", question or ""):
-        for pat in (
-            r"(?i)(The boiling point of water is\b[^.]*)",
-            r"(?i)([A-Z][^.]{0,80}\bboiling point of water is\b[^.]*)",
-            r"(?i)([A-Z][^.]{0,80}\bwater boils at\b[^.]*)",
-        ):
-            m = re.search(pat, snip)
-            if m:
-                return m.group(1).strip().rstrip(",;:") + (
-                    "." if not m.group(1).strip().endswith(".") else ""
-                )
-    if re.search(r"(?i)\bpresident\b", question or ""):
-        for sent in re.split(r"(?<=[.!?])\s+", snip):
-            s = sent.strip()
-            s = re.sub(r"(?i)^for merging\.\s*[›>]\s*", "", s)
-            if has_person_name(s) and re.search(r"(?i)\bpresident", s):
-                if not re.search(r"(?i)\b(wife|spouse|husband)\b", s):
-                    return s.strip()
-    if re.search(r"(?i)\bprime minister\b", question or ""):
-        for sent in re.split(r"(?<=[.!?])\s+", snip):
-            s = sent.strip()
-            if has_person_name(s) and re.search(r"(?i)\bprime minister", s):
-                return s.strip()
-    if re.search(r"(?i)\bchemical symbol\b", question or ""):
-        for pat in (
-            r"(?i)([A-Z][^.]*\b(?:chemical )?symbol (?:is |of )?([A-Z][a-z]?)\b[^.]*)",
-            r"(?i)([A-Z][^.]*\bsymbol\s+([A-Z][a-z]?)\b[^.]*)",
-        ):
-            m = re.search(pat, snip)
-            if m:
-                return m.group(1).strip().rstrip(",;:") + (
-                    "." if not m.group(1).strip().endswith(".") else ""
-                )
-    if re.search(r"(?i)\bwho wrote\b", question or ""):
-        for sent in re.split(r"(?<=[.!?])\s+", snip):
-            s = sent.strip()
-            if re.search(
-                r"(?i)\b(written by|play by|authored|novel by|tragedy by)\b", s
-            ) or (
-                has_person_name(s)
-                and re.search(r"(?i)\b(wrote|author|authored)\b", s)
-            ):
-                return s.strip()
-    if re.search(r"(?i)\b(what company makes|makes the)\b", question or ""):
-        for sent in re.split(r"(?<=[.!?])\s+", snip):
-            s = sent.strip()
-            if re.search(
-                r"(?i)\b(developed by|manufactured by|created by|produced by|"
-                r"owned by|subsidiary of)\b",
-                s,
-            ):
-                return s.strip()
-    if re.search(r"(?i)\bwhen\b", question or ""):
-        for pat in (
-            r"(?i)([A-Z][^.]*\b(?:landed|landing|touched down|happened)\b"
-            r"[^.]{0,80}\b(?:1[89]\d{2}|20\d{2})\b[^.]*)",
-            r"(?i)([A-Z][^.]*\b(?:1[89]\d{2}|20\d{2})\b[^.]{0,40}"
-            r"\b(?:landed|landing|touched down|happened)\b[^.]*)",
-        ):
-            m = re.search(pat, snip)
-            if m:
-                return m.group(1).strip().rstrip(",;:") + (
-                    "." if not m.group(1).strip().endswith(".") else ""
-                )
-    acr_m = re.search(r"(?i)^\s*what is\s+([A-Z]{2,8})\??\s*$", question or "")
-    if acr_m:
-        acr = acr_m.group(1)
-        for sent in re.split(r"(?<=[.!?])\s+", snip):
-            s = sent.strip()
-            if re.search(rf"(?i)\b{re.escape(acr)}\b", s) and re.search(
-                r"(?i)\b(is an?|is the|stands for)\b", s
-            ):
-                return s
-    return snip
-
-
 def population_figure_grounded(core: str, document: str) -> bool:
     """True when a population figure appears as a whole token (not '4' from '123.4')."""
     c = (core or "").strip()
@@ -1010,7 +898,7 @@ def hits_to_document(hits: list[dict], *, snippet_chars: int = 320, question: st
     parts = []
     for h in hits:
         title = (h.get("title") or "").strip()
-        snip = prefer_answer_span((h.get("snippet") or "").strip(), question)
+        snip = (h.get("snippet") or "").strip()
         limit = 560 if h.get("enriched") else snippet_chars
         if len(snip) > limit:
             # Prefer keeping a sentence that answers the question shape.
@@ -1920,7 +1808,9 @@ def run(question: str, *, router: str = "rule", k: int = 4,
     claim token in the summary appears in the notes; otherwise fall back to a
     source sentence. Abstain when evidence is weak.
 
-    Typed slot fallback removed — lexical extract + MiniCPM + compose_reply.
+    Typed slot / office-title / age-template shortcuts removed — lexical
+    extract + MiniCPM + compose_reply. Named age is ``web → calc`` via
+    orchestrate (plan_id age_years).
     """
     if router == "needle":
         intent = needle_intent(question)
@@ -1951,51 +1841,10 @@ def run(question: str, *, router: str = "rule", k: int = 4,
     out.document = doc
     doc_score = float(extract.term_score(question, doc))
     out.detail["doc_score"] = doc_score
-    office_core = office_core_from_hit(question, top, doc)
-    if office_core and is_predecessor_core(office_core, doc, question):
-        office_core = None
     if top_score < MIN_HIT_SCORE:
         out.answer, out.status = CANNOT_ANSWER, "cannot_answer"
         out.detail["abstain_reason"] = "weak_or_off_topic_hit"
         return out
-    # Named age: birth date from biography → whole years (deterministic).
-    age_who = re.match(
-        r"(?i)^\s*how old (?:is|are) ([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\??\s*$",
-        question or "",
-    )
-    if age_who:
-        who = age_who.group(1).strip()
-        # Prefer the hit whose title is the named person (avoid Dane vs Tim Cook).
-        for _sc, h in scored:
-            title_h = (h.get("title") or "").strip()
-            if re.fullmatch(re.escape(who), title_h, flags=re.I):
-                top = h
-                top_score = _sc
-                out.hits = [h for _, h in scored]
-                doc = hits_to_document([top], question=question)
-                out.document = doc
-                break
-        title = (top.get("title") or "").strip()
-        bdate = lex.birth_date_from_doc(f"What is {who}'s birthday?", doc)
-        years = age_years_from_birth_date(bdate) if bdate else None
-        title_ok = bool(re.fullmatch(re.escape(who), title, flags=re.I))
-        grounded = bool(
-            bdate
-            and (
-                title_ok
-                or extract.norm(bdate) in extract.norm(doc)
-                or extract.verify(bdate.split()[0], doc)
-            )
-        )
-        if bdate and years is not None and grounded:
-            out.detail["core"] = str(years)
-            out.detail["birth_date"] = bdate
-            out.detail["extract_status"] = "age_from_birth_date"
-            out.detail["reply_source"] = "age_template"
-            out.detail["top_score"] = top_score
-            out.answer = f"{who} is {years} years old."
-            out.status = "ok"
-            return out
     fact = fact_core_from_doc(question, doc)
 
     def _pop_ok(val: str | None) -> bool:
@@ -2011,24 +1860,12 @@ def run(question: str, *, router: str = "rule", k: int = 4,
         and _pop_ok(fact)
     ):
         core, status = fact, "doc_core"
-    elif (
-        office_core
-        and core_fits_question(question, office_core)
-        and not is_predecessor_core(office_core, doc, question)
-    ):
-        core, status = office_core, "title_core"
     elif fact and re.search(r"(?i)^\s*what is\s+[A-Z]{2,8}\??\s*$", question or ""):
         core, status = fact, "doc_core"
     else:
         core, status = minicpm_extract(question, doc, seed=seed)
         if core and not _pop_ok(core):
             core = None
-        if (not core or not core_fits_question(question, core)) and office_core:
-            if (
-                not is_predecessor_core(office_core, doc, question)
-                and core_fits_question(question, office_core)
-            ):
-                core, status = office_core, "title_core"
         if (not core or not core_fits_question(question, core)) and fact and _pop_ok(
             fact
         ):
@@ -2041,21 +1878,16 @@ def run(question: str, *, router: str = "rule", k: int = 4,
         out.detail["core_rejected"] = core
         rejected = core
         core, status = None, "core_rejected"
-        for cand, st in (
-            (office_core, "title_core"),
-            (fact, "doc_core"),
+        if (
+            fact
+            and extract.norm(fact) != extract.norm(rejected)
+            and not is_degenerate_core(fact, question)
+            and not core_echoes_topic(question, fact)
+            and not is_predecessor_core(fact, doc, question)
+            and core_fits_question(question, fact)
+            and _pop_ok(fact)
         ):
-            if not cand or extract.norm(cand) == extract.norm(rejected):
-                continue
-            if (
-                not is_degenerate_core(cand, question)
-                and not core_echoes_topic(question, cand)
-                and not is_predecessor_core(cand, doc, question)
-                and core_fits_question(question, cand)
-                and _pop_ok(cand)
-            ):
-                core, status = cand, st
-                break
+            core, status = fact, "doc_core"
     out.detail["core"] = core
     out.detail["extract_status"] = status
     if should_abstain(question=question, doc=doc, score=top_score, core=core):

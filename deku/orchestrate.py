@@ -16,9 +16,15 @@ from deku import url_read as ur
 from deku import web_search as ws
 
 TOOL_OK = frozenset({
-    "web_search", "dir_search", "git_search", "diff_search", "url_read",
+    "web_search", "dir_search", "git_search", "diff_search", "url_read", "calc",
 })
 MAX_STEPS = 3
+
+# Named person age → retrieve birth date, then structured years_since.
+_AGE_NAMED = re.compile(
+    r"(?i)^\s*how old (?:is|are) "
+    r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\??\s*$"
+)
 
 DIR_WORDS = cues.DIR_WORDS
 GIT_CUES = re.compile(
@@ -132,10 +138,25 @@ def mixed_tools_without_plan(question: str, *, root: str = ".") -> bool:
     return False
 
 
+def named_age_steps(question: str) -> list[Step] | None:
+    """Formal plan: web birth-date extract → calc years_since."""
+    m = _AGE_NAMED.match(question or "")
+    if not m:
+        return None
+    who = m.group(1).strip()
+    return [
+        Step(tool="web_search", query=f"When was {who} born?"),
+        Step(tool="calc", query="years_since", bind_prior=True),
+    ]
+
+
 def propose_steps(question: str, *, root: str = ".") -> list[Step]:
     """Liberal clause → step proposal for any TOOL_OK mix."""
     if refuse_mod.is_hard_refuse(question or ""):
         return []
+    age = named_age_steps(question)
+    if age:
+        return age
     if not _looks_joined(question, root=root):
         return []
     clauses = _clauses(question)[:MAX_STEPS]
@@ -159,6 +180,8 @@ def propose_steps(question: str, *, root: str = ".") -> list[Step]:
 def plan_id_for(steps: list[Step], *, dependent: bool) -> str:
     """Stable telemetry labels for common shapes; else tool join."""
     tools = [s.tool for s in steps]
+    if tools == ["web_search", "calc"]:
+        return "age_years"
     if tools and all(t == "web_search" for t in tools):
         return "web_dependent" if dependent else "web_independent"
     if tools and all(t == "dir_search" for t in tools):
@@ -175,6 +198,7 @@ def plan_id_for(steps: list[Step], *, dependent: bool) -> str:
         "git_search": "git",
         "diff_search": "diff",
         "url_read": "url",
+        "calc": "calc",
     }
     return "+".join(short.get(t, t) for t in tools)
 
@@ -193,6 +217,9 @@ def validate_plan(steps: list[Step] | None) -> Plan | None:
         if s.bind_prior:
             if i == 0:
                 return None
+            # calc binds a prior core as a structured operand (not anaphora).
+            if s.tool == "calc":
+                continue
             if not mh.needs_prior(s.query):
                 return None
     dependent = any(s.bind_prior for s in steps)
@@ -234,6 +261,9 @@ def _run_one(
     if tool == "url_read":
         from deku import url_read as ur
         return ur.run(query, seed=seed, live_answer=True)
+    if tool == "calc":
+        from deku import calc as calc_mod
+        return calc_mod.run(query, seed=seed, root=root)
     raise ValueError(f"unsupported tool {tool}")
 
 
@@ -279,8 +309,13 @@ def run(
     for i, step in enumerate(built.steps):
         q = step.query
         if step.bind_prior and prior_core:
-            bind = mh.bind_core(prior_query or "", prior_core, step.query)
-            q = mh.rewrite_followup(q, bind)
+            if step.tool == "calc":
+                # Structured operand from prior hop core (not pronoun rewrite).
+                op = (step.query or "years_since").strip().split(":", 1)[0].strip()
+                q = f"{op}: {prior_core}"
+            else:
+                bind = mh.bind_core(prior_query or "", prior_core, step.query)
+                q = mh.rewrite_followup(q, bind)
             dependent = True
         elif step.bind_prior and not prior_core:
             failed.append({"query": q, "tool": step.tool, "reason": "no_prior_core"})
@@ -356,7 +391,24 @@ def run(
             status="cannot_answer", failed=failed,
         )
         return out
-    body = mh.integrate(hops, dependent=dependent and not failed)
+    if (
+        built.plan_id == "age_years"
+        and not failed
+        and len(cores) >= 2
+        and len(hops) >= 2
+    ):
+        who_m = re.search(
+            r"(?i)^when was (.+?) born\??$",
+            built.steps[0].query or "",
+        )
+        who = who_m.group(1).strip() if who_m else None
+        years = cores[-1]
+        if who and re.fullmatch(r"\d+", years or ""):
+            body = f"{who} is {years} years old."
+        else:
+            body = mh.integrate(hops, dependent=True)
+    else:
+        body = mh.integrate(hops, dependent=dependent and not failed)
     if failed:
         miss = "; ".join(f["query"] for f in failed)
         out.answer = f"{body}\n\n(could not answer: {miss})"

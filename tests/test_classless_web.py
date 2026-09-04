@@ -57,6 +57,11 @@ class TestLegacyRemoved(unittest.TestCase):
     def test_predicate_supported_gone(self):
         self.assertFalse(hasattr(ws, "predicate_supported"))
 
+    def test_office_and_span_shortcuts_gone(self):
+        self.assertFalse(hasattr(ws, "office_core_from_hit"))
+        self.assertFalse(hasattr(ws, "prefer_answer_span"))
+        self.assertFalse(hasattr(ws, "age_years_from_birth_date"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,7 +2,7 @@
   "backend": "gguf",
   "base_url": "http://127.0.0.1:8080",
   "model": "MiniCPM5-1B",
-  "when": "2026-08-28T05:54:28.171724+00:00",
+  "when": "2026-09-04T07:28:38.308030+00:00",
   "passed": 24,
   "total": 24,
   "rows": [
@@ -143,8 +143,8 @@
       "tool": "web_search",
       "status": "ok",
       "reason": null,
-      "answer": "The CEO of Apple is Tim Cook.",
-      "elapsed_ms": 9968,
+      "answer": "The CEO of Apple is John Ternus.",
+      "elapsed_ms": 7063,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -172,7 +172,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The capital of France is Paris, the city that has been the capital since 1944.",
-      "elapsed_ms": 7881,
+      "elapsed_ms": 3723,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -196,13 +196,14 @@
       "status": "ok",
       "reason": null,
       "answer": "Apple Inc. is headquartered in Cupertino, California, in Silicon Valley.",
-      "elapsed_ms": 3049,
+      "elapsed_ms": 3087,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
         "core",
         "cue",
         "doc_score",
+        "enriched",
         "extract_status",
         "next_hint",
         "raw_hits",
@@ -220,7 +221,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Tim Cook was born on November 1, 1960, in the city of Mobile, Alabama.",
-      "elapsed_ms": 5989,
+      "elapsed_ms": 4610,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -245,7 +246,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The population of Tokyo is over 14 million as of 2023.",
-      "elapsed_ms": 4725,
+      "elapsed_ms": 4585,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -270,7 +271,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The iPhone was released in the United States on June 29, 2007.",
-      "elapsed_ms": 4482,
+      "elapsed_ms": 4761,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -295,7 +296,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Founded in 1975 by Bill Gates and Paul Allen to market BASIC interpreters for the Altair 8800, Microsoft rose to dominate the PC operating system market with MS-DOS in the mid-1980s, followed by Windows.",
-      "elapsed_ms": 5940,
+      "elapsed_ms": 5334,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -320,7 +321,7 @@
       "status": "ok",
       "reason": null,
       "answer": "The current Emperor of Japan is Emperor Naruhito, born on 23 February 1960.",
-      "elapsed_ms": 4318,
+      "elapsed_ms": 4151,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -344,8 +345,8 @@
       "tool": "multi_hop",
       "status": "ok",
       "reason": null,
-      "answer": "1. The CEO of Apple is Tim Cook.\n2. Apple headquartered in Cupertino, California, in Silicon Valley.",
-      "elapsed_ms": 9836,
+      "answer": "1. The CEO of Apple is John Ternus.\n2. Apple headquartered in Cupertino, California, in Silicon Valley.",
+      "elapsed_ms": 10297,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -369,8 +370,8 @@
       "tool": "multi_hop",
       "status": "ok",
       "reason": null,
-      "answer": "1. The CEO of Apple is Tim Cook.\n2. The capital of France is Paris, the city that has been the capital since 1944.",
-      "elapsed_ms": 11917,
+      "answer": "1. The CEO of Apple is John Ternus.\n2. The capital of France is Paris, the city that has been the capital since 1944.",
+      "elapsed_ms": 11224,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -394,8 +395,8 @@
       "tool": "multi_hop",
       "status": "ok",
       "reason": null,
-      "answer": "History of Microsoft — Microsoft is a computer technology corporation founded on April 4, 1975, by Bill Gates and Paul Allen in Albuquerque, New Mexico, United States. Founded in 1975 by Bill Gates and Paul Allen to market BASIC interpreters for the Altair 8800, Microsoft rose to dominate the PC operating system market with MS-DOS in the mid-1980s, followed by Windows.",
-      "elapsed_ms": 9540,
+      "answer": "Founded in 1975 by Bill Gates and Paul Allen to market BASIC interpreters for the Altair 8800, Microsoft rose to dominate the PC operating system market with MS-DOS in the mid-1980s, followed by Windows. Founded in 1975 by Bill Gates and Paul Allen to market BASIC interpreters for the Altair 8800, Microsoft rose to dominate the PC operating system market with MS-DOS in the mid-1980s, followed by Windows.",
+      "elapsed_ms": 10088,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -419,8 +420,8 @@
       "tool": "multi_hop",
       "status": "ok",
       "reason": null,
-      "answer": "The CEO of Apple is Tim Cook. Timothy Donald Cook was born on November 1, 1960, in the city of Mobile, Alabama.",
-      "elapsed_ms": 11580,
+      "answer": "Tim Cook is the CEO of Apple Inc. and served as executive chairman. Timothy Donald Cook was born on November 1, 1960, in the city of Mobile, Alabama.",
+      "elapsed_ms": 9429,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -444,8 +445,8 @@
       "tool": "multi_hop",
       "status": "ok",
       "reason": null,
-      "answer": "1. The last commit message is \"refactor: generic grounding and rank without entity gloss lists\".\n2. Kenya Nara (@penta2himajin) authored commit b77c4b9f3da8 (\"refactor: generic grounding and rank without entity gloss lists\").",
-      "elapsed_ms": 122,
+      "answer": "1. The last commit message is \"refactor: remove typed slots and template replies from web search\".\n2. Kenya Nara (@penta2himajin) authored commit edf13d63b099 (\"refactor: remove typed slots and template replies from web search\").",
+      "elapsed_ms": 118,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -470,7 +471,7 @@
       "status": "ok",
       "reason": null,
       "answer": "Humans landed the Moon on July 16, 1961, with one-fifth of the world's population. The US was engaged in the Cold War, and the Soviet Union had higher lift capacity. The speech was delivered at a football stadium in Houston. The Moon is a goal.",
-      "elapsed_ms": 11381,
+      "elapsed_ms": 4900,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -492,8 +493,8 @@
       "tool": "git_search",
       "status": "ok",
       "reason": null,
-      "answer": "The last commit message is \"refactor: generic grounding and rank without entity gloss lists\".",
-      "elapsed_ms": 62,
+      "answer": "The last commit message is \"refactor: remove typed slots and template replies from web search\".",
+      "elapsed_ms": 58,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -512,7 +513,7 @@
       "status": "ok",
       "reason": null,
       "answer": "A MiniCPM5-1B–oriented local task harness: small factual jobs (web facts, URL summaries, repo lookup, git/diff, weak multi-step plans) with explicit refusals when the request is out of scope (see README.md).",
-      "elapsed_ms": 98,
+      "elapsed_ms": 90,
       "fail_reasons": [],
       "detail_keys": [
         "audience",
@@ -637,7 +638,7 @@
       "expect_tool": "web_search",
       "expect_status": "ok",
       "expect_reason": null,
-      "answer_must_match": "Tim Cook",
+      "answer_must_match": "John Ternus|Ternus",
       "answer_must_not_match": null,
       "detail_must_match": null
     },
@@ -717,7 +718,7 @@
       "expect_tool": "multi_hop",
       "expect_status": "ok",
       "expect_reason": null,
-      "answer_must_match": "(?s)Tim Cook.*(Cupertino|California)|(Cupertino|California).*Tim Cook",
+      "answer_must_match": "(?s)(John Ternus|Ternus).*(Cupertino|California)|(Cupertino|California).*(John Ternus|Ternus)",
       "answer_must_not_match": null,
       "detail_must_match": null
     },
@@ -727,7 +728,7 @@
       "expect_tool": "multi_hop",
       "expect_status": "ok",
       "expect_reason": null,
-      "answer_must_match": "(?s)(Tim Cook|Cook).*(Paris)|Paris.*(Tim Cook|Cook)",
+      "answer_must_match": "(?s)(John Ternus|Ternus).*(Paris)|Paris.*(John Ternus|Ternus)",
       "answer_must_not_match": null,
       "detail_must_match": null
     },
@@ -743,7 +744,7 @@
     },
     {
       "name": "hop:dependent_born",
-      "question": "Who is the CEO of Apple and where was he born?",
+      "question": "Who is Tim Cook and where was he born?",
       "expect_tool": "multi_hop",
       "expect_status": "ok",
       "expect_reason": null,

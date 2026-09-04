@@ -1,6 +1,14 @@
-"""Document-grounded lexical cores without closed slot labels.
+"""Document-grounded lexical extractors (surface patterns, not slot taxonomy).
 
-Question cues pick which extractors to try; no date|place|person taxonomy.
+Policy (all tools, not only web):
+  Allowed — named extractors (``extract_date``, ``extract_person``, …) that
+  pull grounded spans from a document via surface patterns; question cues
+  choose which extractors to try. Special cases may be formalized as
+  generic tools (e.g. ``calc.years_since``) when derivation is needed.
+
+  Forbidden — closed gloss tables; product control via POS / noun-class /
+  slot labels; shape-specialized reply shortcuts embedded in a tool
+  (templates keyed to president/boiling/age, office-title digs, etc.).
 """
 from __future__ import annotations
 
@@ -27,7 +35,8 @@ def _has_person_name(text: str) -> bool:
     return bool(re.search(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b", text or ""))
 
 
-def _extract_date(question: str, doc: str) -> str | None:
+def extract_date(question: str, doc: str) -> str | None:
+    """Pull a grounded calendar date / year from ``doc``."""
     patterns = (
         rf"(?i)\(born\s+({_DATE})\)",
         rf"(?i)\bborn\s+on\s+({_DATE})\b",
@@ -72,7 +81,8 @@ def _extract_date(question: str, doc: str) -> str | None:
     return None
 
 
-def _extract_place(question: str, doc: str) -> str | None:
+def extract_place(question: str, doc: str) -> str | None:
+    """Pull a grounded place name from ``doc``."""
     for pat in (
         r"(?i)\bborn\s+(?:in|at)\s+"
         r"([A-Z][A-Za-z-]+(?:,[ \t]*[A-Z][A-Za-z-]+)?)",
@@ -108,7 +118,8 @@ def _extract_place(question: str, doc: str) -> str | None:
     return None
 
 
-def _extract_person(question: str, doc: str) -> str | None:
+def extract_person(question: str, doc: str) -> str | None:
+    """Pull a grounded person name from ``doc``."""
     title_line = doc.splitlines()[0].strip() if doc else ""
     if (
         re.search(r"(?i)\bwho\b", question or "")
@@ -117,6 +128,10 @@ def _extract_person(question: str, doc: str) -> str | None:
             question or "",
         )
         and title_line
+        and not re.search(
+            r"(?i)\b(official|car|residence|palace|office|building|museum)\b",
+            title_line,
+        )
         and (
             _has_person_name(title_line)
             or re.fullmatch(r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*", title_line)
@@ -129,8 +144,17 @@ def _extract_person(question: str, doc: str) -> str | None:
         and extract.norm(title_line) in extract.norm(doc)
     ):
         return title_line
+    # Wiki-style title that embeds a person ("Presidency of X").
+    m = re.match(r"(?i)^(?:presidency|premiership) of (.+)$", title_line or "")
+    if m and re.search(r"(?i)\bwho\b", question or ""):
+        name = m.group(1).strip()
+        if _has_person_name(name) and extract.norm(name) in extract.norm(doc):
+            return name
     for pat in (
         r"(?i)\bfounded\s+by\s+"
+        r"(?-i:([A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)+(?:[ \t]+and[ \t]+"
+        r"[A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)+)?))",
+        r"(?i)\bfounded\s+in\s+\d{4}\s+by\s+"
         r"(?-i:([A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)+(?:[ \t]+and[ \t]+"
         r"[A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)+)?))",
         r"(?i)\bco-?founded?\s+(?:by\s+)?"
@@ -145,6 +169,8 @@ def _extract_person(question: str, doc: str) -> str | None:
         r"\b([A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)+)\s+is\s+(?:the\s+)?"
         r"(?:CEO|chief executive(?: officer)?|president|prime minister|"
         r"Emperor(?:\s+of\s+[A-Z][A-Za-z ]+)?)\b",
+        r"(?-i:([A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)+))'s\s+"
+        r"(?:presidency|premiership)\b",
     ):
         m = re.search(pat, doc)
         if not m:
@@ -164,7 +190,8 @@ def _extract_person(question: str, doc: str) -> str | None:
     return None
 
 
-def _extract_number(question: str, doc: str) -> str | None:
+def extract_number(question: str, doc: str) -> str | None:
+    """Pull a grounded numeric figure from ``doc``."""
     for pat in (
         r"(?i)\bpopulation\s+was\s+(?:roughly\s+|about\s+|approximately\s+)?"
         r"([\d.,]+\s*(?:million|billion|thousand)?)",
@@ -188,7 +215,8 @@ def _extract_number(question: str, doc: str) -> str | None:
     return None
 
 
-def _extract_org(question: str, doc: str) -> str | None:
+def extract_org(question: str, doc: str) -> str | None:
+    """Pull a grounded organization name from ``doc``."""
     for pat in (
         r"(?i)\b(?:developed|manufactured|made|created|produced|owned)"
         r"(?:\s+and\s+(?:developed|manufactured|made|created|produced|owned))?"
@@ -201,32 +229,33 @@ def _extract_org(question: str, doc: str) -> str | None:
     return None
 
 
-def _extractors_for_question(question: str) -> list:
+def extractors_for_question(question: str) -> list:
+    """Order extractors to try for ``question`` (cues only; no slot labels)."""
     q = question or ""
     fns: list = []
     if re.search(r"(?i)\bwhere\b.*\bborn\b|\bbirthplace\b", q):
-        fns.append(_extract_place)
+        fns.append(extract_place)
     if re.search(r"(?i)\bbirthday|birth date|born on\b", q):
-        fns.append(_extract_date)
+        fns.append(extract_date)
     if re.search(r"(?i)\bwho\b", q):
-        fns.append(_extract_person)
+        fns.append(extract_person)
     if re.search(r"(?i)\b(population|boiling point|how many|how much|atomic number)\b", q):
-        fns.append(_extract_number)
+        fns.append(extract_number)
     if re.search(r"(?i)\b(what company|makes the|manufacturer)\b", q):
-        fns.append(_extract_org)
+        fns.append(extract_org)
     if re.search(r"(?i)\bwhen\b", q):
-        fns.append(_extract_date)
+        fns.append(extract_date)
     if re.search(r"(?i)\bcapital of|headquarter|based in|located\b", q):
-        fns.append(_extract_place)
+        fns.append(extract_place)
     if re.search(r"(?i)\bwho founded\b", q):
-        fns.append(_extract_person)
+        fns.append(extract_person)
     seen: set = set()
     ordered: list = []
     for fn in fns:
         if fn not in seen:
             seen.add(fn)
             ordered.append(fn)
-    for fn in (_extract_person, _extract_date, _extract_place, _extract_number, _extract_org):
+    for fn in (extract_person, extract_date, extract_place, extract_number, extract_org):
         if fn not in seen:
             ordered.append(fn)
     return ordered
@@ -238,12 +267,8 @@ def lexical_core_from_doc(question: str, document: str) -> str | None:
     if not doc:
         return None
     q = question or ""
-    for fn in _extractors_for_question(q):
+    for fn in extractors_for_question(q):
         core = fn(q, doc)
         if core:
             return core
     return None
-
-
-def birth_date_from_doc(question: str, document: str) -> str | None:
-    return _extract_date(question, document)

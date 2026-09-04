@@ -174,7 +174,8 @@ def is_hard_refuse(question: str) -> bool:
     """True when hard_route should pick refuse (math/code/chitchat/deep/vague age).
 
     Underspecified path asks go to clarify instead of refuse.
-    Named \"How old is Jane Example?\" is allowed through to web_search.
+    Named \"How old is Jane Example?\" is allowed through as a weak plan
+    (web_search birth date → calc years_since), not free-form math.
     """
     q = question or ""
     return bool(

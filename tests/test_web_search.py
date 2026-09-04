@@ -450,7 +450,7 @@ class TestExtraFailures(unittest.TestCase):
             ws.MIN_HIT_SCORE,
         )
 
-    def test_office_core_from_premiership_title(self):
+    def test_premiership_title_document_has_person(self):
         hit = {
             "title": "Premiership of Andy Burnham",
             "snippet": "Andy Burnham's premiership began in 2026.",
@@ -459,12 +459,11 @@ class TestExtraFailures(unittest.TestCase):
         doc = ws.hits_to_document(
             [hit], question="Who is the prime minister of the United Kingdom?"
         )
-        self.assertEqual(
-            ws.office_core_from_hit(
-                "Who is the prime minister of the United Kingdom?", hit, doc
-            ),
-            "Andy Burnham",
+        self.assertIn("Andy Burnham", doc)
+        core = ws.fact_core_from_doc(
+            "Who is the prime minister of the United Kingdom?", doc
         )
+        self.assertEqual(core, "Andy Burnham")
 
     def test_fact_core_what_is_nasa(self):
         doc = (
@@ -560,7 +559,7 @@ class TestEnrichAndRank(unittest.TestCase):
         top = ws.rank_hits("Who is the president of France?", hits, k=2)
         self.assertIn("Macron", top[0]["title"])
 
-    def test_office_core_overrides_year_extract(self):
+    def test_president_core_from_presidency_doc(self):
         hit = {
             "title": "Presidency of Emmanuel Macron",
             "snippet": "Emmanuel Macron's presidency began on 14 May 2017.",
@@ -568,10 +567,8 @@ class TestEnrichAndRank(unittest.TestCase):
         }
         doc = ws.hits_to_document([hit], question="Who is the president of France?")
         self.assertFalse(ws.core_fits_question("Who is the president of France?", "2017"))
-        self.assertEqual(
-            ws.office_core_from_hit("Who is the president of France?", hit, doc),
-            "Emmanuel Macron",
-        )
+        core = ws.fact_core_from_doc("Who is the president of France?", doc)
+        self.assertEqual(core, "Emmanuel Macron")
 
     def test_boiling_prefers_complete_sentence_hit(self):
         hits = [
@@ -594,14 +591,7 @@ class TestEnrichAndRank(unittest.TestCase):
         got = ws.fact_core_from_doc("What is the boiling point of water?", doc)
         self.assertEqual(got, "100")
 
-    def test_prefer_boiling_span(self):
-        snip = (
-            "surface. Transition boiling is unstable. "
-            "The boiling point of water is 100 °C or 212 °F, under standard pressure."
-        )
-        got = ws.prefer_answer_span(snip, "What is the boiling point of water?")
-        self.assertTrue(got.startswith("The boiling point of water is"))
-        self.assertIn("100", got)
+    def test_company_prefers_inc_title(self):
         hits = [
             {"title": "Apple", "snippet": "An apple is a fruit.", "url": "fruit"},
             {"title": "Apple Inc.", "snippet": "Tim Cook is the CEO of Apple Inc.", "url": "corp"},

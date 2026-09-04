@@ -146,18 +146,20 @@ class TestHowOldRefuse(unittest.TestCase):
         self.assertEqual(got.tool, "refuse")
         self.assertEqual(got.detail.get("reason"), "age")
 
-    def test_named_how_old_routes_to_web(self):
+    def test_named_how_old_routes_to_multi_hop(self):
         q = "How old is Tim Cook?"
         self.assertNotEqual(rf.classify(q), "age")
         self.assertFalse(rf.is_hard_refuse(q))
-        self.assertEqual(rt.rule_route(q).tool, "web_search")
+        self.assertEqual(rt.rule_route(q).tool, "multi_hop")
 
 
 class TestAgeYears(unittest.TestCase):
     def test_age_from_birth_date(self):
         from datetime import date
 
-        years = ws.age_years_from_birth_date(
+        from deku import calc
+
+        years = calc.years_since(
             "1 November 1960", today=date(2026, 8, 21)
         )
         self.assertEqual(years, 65)
