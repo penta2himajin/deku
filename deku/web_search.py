@@ -205,20 +205,20 @@ def generic_hit_score(question: str, hit: dict) -> float:
             r"(?i)\b(film|movie|song|album|restaurant)\b", question or ""
         ):
             score -= 4.0
-    # Birthday of an officeholder: down-rank observance/holiday pages.
-    if qc.asks_birthday_strict(question or "") and qc.OFFICE_ROLE.search(
-        question or ""
-    ):
-        if re.search(r"(?i)\bpublic holiday\b", text):
-            score -= 10.0
-        elif re.match(r"(?i)^the .+'s birthday$", title.strip()):
-            score -= 10.0
+    # Birthday of an officeholder: holiday noise down, bio / role cues up.
+    if qc.asks_officeholder_birthday(question or ""):
+        score += _officeholder_birthday_rank_delta(
+            question or "", title, text
+        )
 
     snip = (hit.get("snippet") or "").strip()
     if snip.startswith("Because of this") or (snip and snip[0].islower()):
         score -= 6.0
 
-    acr_m = re.search(r"(?i)^\s*what is\s+(\S+?)\??\s*$", question or "")
+    acr_m = qc.asks_what_is_acronym(question or "")
+    if not acr_m:
+        # Broader "What is X?" (not only ALLCAPS acronyms) for title boost.
+        acr_m = re.search(r"(?i)^\s*what is\s+(\S+?)\??\s*$", question or "")
     if acr_m:
         ent = acr_m.group(1).strip()
         if title.strip().casefold() == ent.casefold():
@@ -282,40 +282,8 @@ def generic_hit_score(question: str, hit: dict) -> float:
             score += 5.0
 
     # Onomastic / dictionary pages are poor person biographies.
-    if re.search(r"(?i)\((given name|surname|name)\)", title):
+    if qc.looks_onomastic_title(title):
         score -= 12.0
-
-    # Birthday of an officeholder: boost bios with birth dates / person titles.
-    if qc.asks_birthday_strict(question or "") and re.search(
-        r"(?i)\b(current|emperor|president|prime minister|pope)\b",
-        question or "",
-    ):
-        if re.search(r"(?i)\(born\s+\d|\bborn\s+(?:on\s+)?\d", text):
-            score += 8.0
-        if has_person_name(title) and not re.search(
-            r"(?i)\((given name|surname|name)\)", title
-        ):
-            score += 4.0
-        # Prefer the asked office over a differently titled relative.
-        role_m = re.search(
-            r"(?i)\b(emperor|empress|president|prime minister|pope)\b",
-            question or "",
-        )
-        if role_m:
-            role = role_m.group(1).casefold()
-            if re.search(
-                rf"(?i)\bis\s+(?:the\s+)?{re.escape(role)}\b"
-                rf"|\b{re.escape(role)}\s+of\b",
-                text,
-            ):
-                score += 12.0
-            # Spouse / emerita pages: title is a different office word.
-            if role == "emperor" and re.search(r"(?i)\bempress\b", title):
-                score -= 18.0
-            elif role == "empress" and re.search(
-                r"(?i)\bemperor\b", title
-            ) and not re.search(r"(?i)\bempress\b", title):
-                score -= 18.0
 
     # who founded: prefer the org page (or founder bio) over product compounds.
     if qc.asks_who_founded(question or "") and topic:
@@ -746,6 +714,39 @@ def _who_office_rank_delta(
         and not has_person_name(title)
     ):
         delta -= 12.0
+    return delta
+
+
+def _officeholder_birthday_rank_delta(
+    question: str, title: str, text: str
+) -> float:
+    """Holiday noise down; person bios / matching office role up."""
+    delta = 0.0
+    if qc.looks_holiday_observance(text, title):
+        delta -= 10.0
+    if re.search(r"(?i)\(born\s+\d|\bborn\s+(?:on\s+)?\d", text):
+        delta += 8.0
+    if has_person_name(title) and not qc.looks_onomastic_title(title):
+        delta += 4.0
+    role_m = re.search(
+        r"(?i)\b(emperor|empress|president|prime minister|pope)\b",
+        question or "",
+    )
+    if role_m:
+        role = role_m.group(1).casefold()
+        if re.search(
+            rf"(?i)\bis\s+(?:the\s+)?{re.escape(role)}\b"
+            rf"|\b{re.escape(role)}\s+of\b",
+            text,
+        ):
+            delta += 12.0
+        # Spouse / emerita pages: title is a different office word.
+        if role == "emperor" and re.search(r"(?i)\bempress\b", title):
+            delta -= 18.0
+        elif role == "empress" and re.search(
+            r"(?i)\bemperor\b", title
+        ) and not re.search(r"(?i)\bempress\b", title):
+            delta -= 18.0
     return delta
 
 
@@ -1547,70 +1548,69 @@ def compose_reply(
     return candidates[0][1]
 
 
+def _looks_person_core(core: str) -> bool:
+    c = (core or "").strip()
+    if has_person_name(c) or re.search(r"(?i)^pope\s+\S+", c):
+        return True
+    if re.fullmatch(r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+", c):
+        return True
+    if re.fullmatch(
+        r"[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:\s+[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+)*", c
+    ):
+        return True
+    return False
+
+
 def core_fits_question(question: str, core: str | None) -> bool:
     """Reject cores that cannot be the asked-for answer type."""
     c = (core or "").strip()
+    q = question or ""
     if not c:
         return False
     if re.fullmatch(r"(?i)yes|no|true|false", c):
         return False
-    if core_echoes_topic(question, c):
+    if core_echoes_topic(q, c):
         return False
-    if re.search(r"(?i)\bwho\b", question or "") and re.fullmatch(r"[\d\s./-]+", c):
+    if re.search(r"(?i)\bwho\b", q) and re.fullmatch(r"[\d\s./-]+", c):
         return False
-    # "Who is the CEO/PM/…" needs a person-shaped core, not an org echo.
-    if re.search(
-        r"(?i)\bwho\b.+\b(ceo|chief executive|prime minister|president|pope|emperor|"
-        r"founded|wrote)\b|\bwho\s+is\s+the\s+(ceo|prime minister|president)\b",
-        question or "",
-    ):
-        if has_person_name(c) or re.search(r"(?i)^pope\s+\S+", c):
-            pass
-        elif re.fullmatch(r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+", c):
-            pass
-        elif re.fullmatch(r"[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:\s+[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+)*", c):
-            # Mononym / surname / latin-extended (Pichai, Naruhito, Kōji Satō).
-            pass
-        else:
-            return False
-    if qc.asks_who_founded(question or ""):
+    # Who-asks that expect a person (office / founded / wrote).
+    if qc.asks_who_person(q) and not _looks_person_core(c):
+        return False
+    if qc.asks_who_founded(q):
         # Founders are people (or "A and B"), not dates / years.
         if re.search(r"\d{4}", c) and not re.search(
             r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+", c
         ):
             return False
-        if re.match(r"(?i)^(january|february|march|april|may|june|july|"
-                    r"august|september|october|november|december)\b", c):
+        if qc.looks_month_name(c):
             return False
-    if re.search(r"(?i)\bwho\b", question or "") and re.search(
+    if re.search(r"(?i)\bwho\b", q) and re.search(
         r"(?i)\d+(st|nd|rd|th)\s+president\b", c
     ):
         return False
-    if re.search(r"(?i)\bwhen\b.*\bfounded\b|\bfounded\b.*\bwhen\b", question or ""):
+    if qc.asks_founded_when(q):
         if not re.search(r"\d{4}", c):
             return False
         # Reject person names mistaken for founding years.
         if re.fullmatch(r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+", c):
             return False
-    elif re.search(r"(?i)\bwhen\b", question or "") and not re.search(r"\d", c):
+    elif re.search(r"(?i)\bwhen\b", q) and not re.search(r"\d", c):
         return False
-    if qc.asks_birthday_strict(question or "") and not re.search(
-        r"\d", c
-    ):
+    if qc.asks_birthday_strict(q) and not re.search(r"\d", c):
         return False
-    if qc.asks_population(question or "") and not re.search(r"\d", c):
+    if qc.asks_population(q) and not re.search(r"\d", c):
         return False
-    if re.search(r"(?i)\b(headquarters?|headquartered|based)\b", question or ""):
+    if qc.asks_hq(q):
         # Org named in the question is never the place answer.
         org_m = re.search(
             r"(?i)(?:where (?:is|are)|headquarters of)\s+(.+?)"
             r"(?:\s+(?:headquartered|based))?\??\s*$",
-            question or "",
+            q,
         )
         if not org_m:
             org_m = re.search(
                 r"(?i)where (?:is|are) (.+?) (?:headquartered|based)",
-                question or "",
+                q,
             )
         if org_m:
             org = org_m.group(1).strip().rstrip("?.")
@@ -1619,28 +1619,20 @@ def core_fits_question(question: str, core: str | None) -> bool:
                 return False
             if org and extract.norm(org) in extract.norm(c) and len(c.split()) <= 2:
                 return False
-    if re.search(r"(?i)\bborn\b", question or "") and re.search(
-        r"(?i)\bwhere\b", question or ""
-    ):
+    if qc.asks_born_where(q):
         # Birthplace must look like a place, not a person fragment / article.
         if re.fullmatch(r"(?i)the|a|an|he|she|they|him|her", c):
             return False
-        if re.search(
-            r"(?i)^(january|february|march|april|may|june|july|august|"
-            r"september|october|november|december)\b",
-            c,
-        ):
+        if qc.looks_month_name(c):
             return False
         if re.fullmatch(r"\d{4}", c):
             return False
-        who = re.search(
-            r"(?i)where (?:was|is) (.+?) born", question or ""
-        )
+        who = re.search(r"(?i)where (?:was|is) (.+?) born", q)
         if who and extract.norm(c) in extract.norm(who.group(1)):
             return False
         if len(c) < 3:
             return False
-    if qc.asks_chemical_symbol(question or ""):
+    if qc.asks_chemical_symbol(q):
         # Atomic numbers are not chemical symbols.
         if re.fullmatch(r"\d+", c):
             return False
@@ -1649,14 +1641,14 @@ def core_fits_question(question: str, core: str | None) -> bool:
             r"(?i)\b[A-Z][a-z]?\b", c
         ):
             return False
-    m = re.search(r"(?i)^\s*who wrote (.+?)\??\s*$", question or "")
-    if m:
-        work = m.group(1).strip().strip('"\'')
+    wrote = qc.asks_who_wrote(q)
+    if wrote:
+        work = wrote.group(1).strip().strip("\"'")
         if work and extract.norm(c) == extract.norm(work):
             return False
-    m = re.search(r"(?i)what company makes (?:the )?(.+?)\??\s*$", question or "")
-    if m:
-        product = m.group(1).strip().rstrip("?.")
+    maker = qc.asks_maker(q)
+    if maker:
+        product = maker.group(1).strip().rstrip("?.")
         # Reject product-page titles that embed the product ("X PlayStation").
         if (
             product
@@ -1665,6 +1657,7 @@ def core_fits_question(question: str, core: str | None) -> bool:
         ):
             return False
     return True
+
 
 
 def should_abstain(

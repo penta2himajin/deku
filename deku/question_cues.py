@@ -27,8 +27,24 @@ _BIRTHDAY = re.compile(
 )
 _POPULATION = re.compile(r"(?i)\bpopulation\b")
 _WHO_FOUNDED = re.compile(r"(?i)\bwho founded\b")
+_WHO_WROTE = re.compile(r"(?i)^\s*who wrote (.+?)\??\s*$")
 _CAPITAL = re.compile(r"(?i)\bcapital of\b")
 _HOW_OLD = re.compile(r"(?i)\bhow old\b")
+_HQ = re.compile(r"(?i)\b(headquarters?|headquartered|based)\b")
+_MAKER = re.compile(r"(?i)what company makes (?:the )?(.+?)\??\s*$")
+_MONTH_NAME = re.compile(
+    r"(?i)^(january|february|march|april|may|june|july|august|"
+    r"september|october|november|december)\b"
+)
+_ONOMATIC = re.compile(r"(?i)\((given name|surname|name)\)")
+# Officeholder birthday asks (emperor/president/…), including "current".
+_OFFICEHOLDER_BIRTHDAY_Q = re.compile(
+    r"(?i)\b(current|emperor|empress|president|prime minister|pope)\b"
+)
+_WHO_PERSON = re.compile(
+    r"(?i)\bwho\b.+\b(ceo|chief executive|prime minister|president|pope|emperor|"
+    r"founded|wrote)\b|\bwho\s+is\s+the\s+(ceo|prime minister|president)\b"
+)
 
 
 def asks_who_office(question: str) -> bool:
@@ -70,8 +86,48 @@ def asks_who_founded(question: str) -> bool:
     return bool(_WHO_FOUNDED.search(question or ""))
 
 
+def asks_who_wrote(question: str) -> re.Match[str] | None:
+    return _WHO_WROTE.search(question or "")
+
+
+def asks_who_person(question: str) -> bool:
+    """Who-asks that expect a person core (office / founded / wrote)."""
+    return bool(_WHO_PERSON.search(question or ""))
+
+
 def asks_capital(question: str) -> bool:
     return bool(_CAPITAL.search(question or ""))
+
+
+def asks_hq(question: str) -> bool:
+    return bool(_HQ.search(question or ""))
+
+
+def asks_maker(question: str) -> re.Match[str] | None:
+    return _MAKER.search(question or "")
+
+
+def asks_officeholder_birthday(question: str) -> bool:
+    """Birthday ask about an officeholder (not a bare personal birthday)."""
+    q = question or ""
+    return bool(asks_birthday_strict(q) and _OFFICEHOLDER_BIRTHDAY_Q.search(q))
+
+
+def looks_month_name(text: str) -> bool:
+    return bool(_MONTH_NAME.search(text or ""))
+
+
+def looks_onomastic_title(title: str) -> bool:
+    return bool(_ONOMATIC.search(title or ""))
+
+
+def looks_holiday_observance(text: str, title: str = "") -> bool:
+    """True for public-holiday / 'The X's birthday' noise pages."""
+    if re.search(r"(?i)\bpublic holiday\b", text or ""):
+        return True
+    if re.match(r"(?i)^the .+'s birthday$", (title or "").strip()):
+        return True
+    return False
 
 
 def asks_born_where(question: str) -> bool:

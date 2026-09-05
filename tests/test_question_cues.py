@@ -39,6 +39,27 @@ class TestQuestionCues(unittest.TestCase):
             )
         )
 
+    def test_officeholder_birthday(self):
+        self.assertTrue(
+            qc.asks_officeholder_birthday(
+                "What is the birthday of the current Emperor of Japan?"
+            )
+        )
+        self.assertFalse(
+            qc.asks_officeholder_birthday("What is Tim Cook's birthday?")
+        )
+        self.assertTrue(
+            qc.looks_holiday_observance(
+                "It is a public holiday in Japan.",
+                "The Emperor's Birthday",
+            )
+        )
+
+    def test_acronym(self):
+        m = qc.asks_what_is_acronym("What is NASA?")
+        self.assertIsNotNone(m)
+        self.assertEqual(m.group(1), "NASA")
+
 
 if __name__ == "__main__":
     unittest.main()
