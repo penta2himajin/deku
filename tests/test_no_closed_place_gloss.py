@@ -1,10 +1,11 @@
-"""JA place names pass through without a closed gloss table."""
+"""English-only front door: no JA→EN templates or place gloss."""
 
 from __future__ import annotations
 
 import unittest
 
 from deku import normalize as nz
+from deku import route as rt
 
 
 class TestNoClosedPlaceGloss(unittest.TestCase):
@@ -12,10 +13,16 @@ class TestNoClosedPlaceGloss(unittest.TestCase):
         places = getattr(nz, "_PLACES", None)
         self.assertTrue(places is None or places == {})
 
-    def test_capital_keeps_japanese_place_token(self):
-        en, detail = nz.normalize_question("日本の首都はどこですか？")
-        self.assertEqual(en, "What is the capital of 日本?")
-        self.assertEqual(detail.get("normalized_from"), "ja")
+    def test_no_ja_normalize_bridge(self):
+        self.assertFalse(hasattr(nz, "normalize_question"))
+        q, detail = nz.prepare_question("日本の首都はどこですか？")
+        self.assertEqual(q, "日本の首都はどこですか？")
+        self.assertFalse(detail.get("normalized_from"))
+
+    def test_japanese_refused(self):
+        got = rt.rule_route("日本の首都はどこですか？")
+        self.assertEqual(got.tool, "refuse")
+        self.assertEqual(got.detail.get("reason"), "non_english")
 
 
 if __name__ == "__main__":

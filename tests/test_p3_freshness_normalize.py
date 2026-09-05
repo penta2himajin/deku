@@ -1,10 +1,11 @@
-"""P3: office freshness, URL temporal scope, Japanese normalize."""
+"""P3: office freshness, URL temporal scope, English-only (no JA bridge)."""
 
 from __future__ import annotations
 
 import unittest
 
 from deku import normalize as nz
+from deku import refuse as rf
 from deku import route as rt
 from deku import url_read as ur
 from deku import web_search as ws
@@ -64,26 +65,33 @@ class TestTemporalScope(unittest.TestCase):
         )
 
 
-class TestJapaneseNormalize(unittest.TestCase):
+class TestJapaneseRejected(unittest.TestCase):
     def test_detect_japanese(self):
         self.assertTrue(nz.looks_japanese("日本の首都はどこですか？"))
         self.assertFalse(nz.looks_japanese("What is the capital of Japan?"))
 
-    def test_rule_normalize_capital(self):
-        # No closed JA→EN place gloss: keep surface token.
-        en, detail = nz.normalize_question("日本の首都はどこですか？")
-        self.assertEqual(en, "What is the capital of 日本?")
-        self.assertEqual(detail.get("normalized_from"), "ja")
+    def test_prepare_does_not_translate(self):
+        q, detail = nz.prepare_question("日本の首都はどこですか？")
+        self.assertEqual(q, "日本の首都はどこですか？")
+        self.assertNotIn("normalized_from", detail)
 
-    def test_rule_normalize_ceo(self):
-        en, _ = nz.normalize_question("AppleのCEOは誰ですか？")
-        self.assertEqual(en, "Who is the CEO of Apple?")
+    def test_japanese_is_hard_refuse(self):
+        self.assertTrue(rf.is_hard_refuse("日本の首都はどこですか？"))
+        self.assertEqual(rf.classify("日本の首都はどこですか？"), "non_english")
+        self.assertEqual(
+            rf.message("non_english", audience="agent"), "refused:non_english"
+        )
 
-    def test_japanese_routes_after_normalize(self):
+    def test_japanese_routes_to_refuse(self):
         got = rt.rule_route("日本の首都はどこですか？")
-        self.assertEqual(got.tool, "web_search")
-        blob = got.query or got.detail.get("normalized") or ""
-        self.assertTrue("日本" in blob or "capital" in blob.lower(), blob)
+        self.assertEqual(got.tool, "refuse")
+        self.assertEqual(got.detail.get("reason"), "non_english")
+        dispatched = rt.dispatch(
+            "AppleのCEOは誰ですか？", router="rule", audience="agent"
+        )
+        self.assertEqual(dispatched.status, "refused")
+        self.assertEqual(dispatched.detail.get("reason"), "non_english")
+        self.assertEqual(dispatched.answer, "refused:non_english")
 
 
 if __name__ == "__main__":

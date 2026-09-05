@@ -30,10 +30,14 @@ class TestCanonicalize(unittest.TestCase):
         en, _ = can.canonicalize_question("What is Tokyo's population?")
         self.assertEqual(en, "What is the population of Tokyo?")
 
-    def test_prepare_chains_ja_then_canon(self):
-        en, d = nz.prepare_question("日本の首都はどこですか？")
-        self.assertEqual(en, "What is the capital of 日本?")
-        self.assertEqual(d.get("normalized_from"), "ja")
+    def test_prepare_english_canonicalize_only(self):
+        en, d = nz.prepare_question("Who currently runs Apple as chief executive?")
+        self.assertEqual(en, "Who is the CEO of Apple?")
+        self.assertTrue(d.get("canonicalized"))
+        # Japanese is not translated at the front door.
+        ja, jd = nz.prepare_question("日本の首都はどこですか？")
+        self.assertEqual(ja, "日本の首都はどこですか？")
+        self.assertFalse(jd.get("normalized_from"))
 
     def test_route_uses_canonical_ceo(self):
         got = rt.rule_route("Who currently runs Apple as chief executive?")

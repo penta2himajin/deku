@@ -134,7 +134,8 @@ The harness picks tools and builds evidence; MiniCPM only compresses or extracts
 
 ## Limitations (honest)
 
-- Tuned for **MiniCPM5-1B** on **English** (and Chinese to some extent). Japanese often loops — not supported.
+- Tuned for **MiniCPM5-1B** on **English** (and Chinese to some extent). Japanese input is refused (`non_english`).
+- Prefers short answers; long essays and open-ended reasoning are refused with an explicit reason.
 - No general coding agent; code authoring and math are **refused** with a reason.
 - Default extract path uses **chat completions** (GGUF + `llama-server --jinja`). Prefill `/v1/completions` degenerates on this stack — measured.
 - Live web / URL quality depends on search snippets and network; weak evidence abstains rather than inventing.
@@ -153,7 +154,7 @@ The harness picks tools and builds evidence; MiniCPM only compresses or extracts
 
 - General coding agent / SWE-bench runner
 - Model-authored multi-step “chain of thought” planning
-- Japanese as a supported input language (MiniCPM5-1B is EN/ZH; JA loops)
+- Japanese as a supported input language (refused as `non_english`; ask in English)
 - Bundling MLX conversion stacks or large research eval matrices
 
 ## Planned layout

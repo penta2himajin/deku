@@ -20,6 +20,7 @@ REASONS = (
     "deep_reasoning",
     "underspecified",
     "age",
+    "non_english",
     "out_of_scope",
     "no_plan",
 )
@@ -51,6 +52,11 @@ MESSAGES = {
         "I cannot answer vague age questions (for example \"how old is he?\"). "
         "Ask with a full name: How old is Jane Example?"
     ),
+    "non_english": (
+        "I only accept English questions. "
+        "Please rephrase in English "
+        "(web fact, repository, git, diff, or a URL)."
+    ),
     "out_of_scope": (
         "I cannot handle that request with the available tools. "
         "Ask clear factual questions (web fact, repo file, git history, or diff), "
@@ -72,6 +78,7 @@ AGENT_MESSAGES = {
     "deep_reasoning": "refused:deep_reasoning",
     "underspecified": "refused:underspecified",
     "age": "refused:age",
+    "non_english": "refused:non_english",
     "out_of_scope": "refused:out_of_scope",
     "no_plan": "refused:no_plan",
 }
@@ -140,6 +147,10 @@ def is_underspecified_path(question: str) -> bool:
 def classify(question: str) -> str:
     """Return a refuse reason for an out-of-scope question."""
     q = question or ""
+    from deku import normalize as nz
+
+    if nz.looks_japanese(q):
+        return "non_english"
     if MATH.search(q):
         return "math"
     if CODE.search(q):
@@ -171,15 +182,18 @@ def message(reason: str, *, audience: str | None = None) -> str:
 
 
 def is_hard_refuse(question: str) -> bool:
-    """True when hard_route should pick refuse (math/code/chitchat/deep/vague age).
+    """True when hard_route should pick refuse (math/code/chitchat/deep/vague age/JA).
 
     Underspecified path asks go to clarify instead of refuse.
     Named \"How old is Jane Example?\" is allowed through as a weak plan
     (web_search birth date → calc years_since), not free-form math.
     """
     q = question or ""
+    from deku import normalize as nz
+
     return bool(
-        MATH.search(q)
+        nz.looks_japanese(q)
+        or MATH.search(q)
         or CODE.search(q)
         or CHITCHAT.search(q)
         or (AGE.search(q) and not AGE_NAMED.match(q))

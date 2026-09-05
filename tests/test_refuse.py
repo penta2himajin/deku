@@ -78,10 +78,10 @@ class TestDispatchRefuse(unittest.TestCase):
             "Show me the commit log of the last commit that changed this part."
         ))
 
-    def test_fix_bug_refuses(self):
-        got = rt.rule_route("Fix the bug in route.py")
+    def test_japanese_refuses(self):
+        got = rt.rule_route("日本の首都はどこですか？")
         self.assertEqual(got.tool, "refuse")
-        self.assertEqual(got.detail.get("reason"), "code")
+        self.assertEqual(got.detail.get("reason"), "non_english")
 
 
 if __name__ == "__main__":
