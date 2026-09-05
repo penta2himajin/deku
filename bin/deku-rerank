@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+"""Launch the optional MiniCPM-Reranker HTTP sidecar."""
+from deku.rerank_serve import main
+
+if __name__ == "__main__":
+    raise SystemExit(main())

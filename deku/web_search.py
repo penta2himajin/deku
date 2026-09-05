@@ -757,6 +757,13 @@ def rank_hits(question: str, hits: list[dict], k: int = 4) -> list[dict]:
 def rank_hits_scored(
     question: str, hits: list[dict], k: int = 4
 ) -> list[tuple[float, dict]]:
+    from deku import rerank as rr
+
+    # Product path: MiniCPM-Reranker sidecar when DEKU_RERANK_URL is set.
+    # Lexical scores remain the offline / fallback ranker.
+    rr_scored = rr.try_rerank_hits(question, hits, k=k)
+    if rr_scored is not None:
+        return rr_scored
     scored = [(generic_hit_score(question, h), h) for h in hits]
     scored.sort(key=lambda x: (-x[0], hits.index(x[1]) if x[1] in hits else 0))
     return scored[:k]

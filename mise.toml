@@ -24,6 +24,10 @@ run = "uv run python -m unittest discover -s tests -v"
 description = "Ensure MiniCPM5 GGUF is cached, then exec llama-server --jinja"
 run = "uv run deku-serve"
 
+[tasks.serve-rerank]
+description = "MiniCPM-Reranker-Light HTTP sidecar (needs: uv sync --extra rerank)"
+run = "uv run --extra rerank deku-rerank"
+
 [tasks.doctor]
 description = "Check Python, uv, llama-server, and Hugging Face download readiness"
 run = "uv run python -m deku.doctor"

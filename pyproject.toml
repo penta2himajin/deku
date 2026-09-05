@@ -36,6 +36,13 @@ dependencies = [
 needle = [
   "cactus-needle>=2.0",
 ]
+rerank = [
+  "torch",
+  "transformers==4.37.2",
+  "sentencepiece",
+  "sentence-transformers",
+  "accelerate",
+]
 
 [project.urls]
 Homepage = "https://github.com/penta2himajin/deku"
@@ -44,6 +51,7 @@ Issues = "https://github.com/penta2himajin/deku/issues"
 
 [project.scripts]
 deku-serve = "deku.serve:main"
+deku-rerank = "deku.rerank_serve:main"
 deku = "deku.cli:main"
 
 [tool.hatch.build.targets.wheel]

@@ -17,6 +17,7 @@ Deterministic (or lightly lexical) machinery:
 - **Audience** — refuse prose for humans, `refused:<reason>` codes for agents (`--audience` / `DEKU_AUDIENCE`)
 - **Lexical extractors** — named surface extractors (`extract_date`, `extract_person`, …) pull grounded spans from a document; question cues choose which to try. Special cases may be formalized as generic tools (e.g. named age → `web_search` then `calc`). Forbidden across **all** tools: closed gloss tables; product control via POS / noun-class / slot labels; shape-specialized reply shortcuts embedded in a tool
 - **Optional Needle** — tool routing only; never free-form answers or plans. Product smokes measure the rule path without Needle
+- **Optional rerank sidecar** — MiniCPM-Reranker over HTTP when `DEKU_RERANK_URL` is set (`deku.rerank` client only; torch stays in `deku-rerank`). Lexical rank is the fallback. See [ADR 0002](decisions/0002-rerank-sidecar.md)
 - **Hierarchical summary** — map/reduce with extractive leaf anchors (MiniCPM only compresses short notes)
 
 The model is never the planner of record.
@@ -30,6 +31,8 @@ Single module responsibility: call an OpenAI-compatible chat completions API and
 | `DEKU_URL` | API base (no trailing `/v1` or with — pick one convention and stick to it) | `http://127.0.0.1:8080` |
 | `DEKU_MODEL` | Model id string the server expects | `MiniCPM5-1B` / GGUF path as required by llama-server |
 | `DEKU_API_KEY` | Optional bearer | empty / `unused` |
+| `DEKU_RERANK_URL` | MiniCPM-Reranker sidecar base (no path) | unset → lexical rank |
+| `DEKU_RERANK_TIMEOUT` | Rerank HTTP timeout seconds | `30` |
 
 The client **must not** import llama.cpp, MLX, or GGUF parsers.
 
@@ -52,7 +55,7 @@ Binary acquisition: document installing `llama-server` on PATH; do not vendor la
 
 ## In-scope agent modules
 
-**In scope:** `route`, `refuse`, `render`, `web_search`, `dir_search`, `git_search`, `diff_search`, `url_read`, `calc`, `multi_hop`, `hier_summary`, `orchestrate`, `lexical_core`, small related unit tests.
+**In scope:** `route`, `refuse`, `render`, `web_search`, `dir_search`, `git_search`, `diff_search`, `url_read`, `calc`, `multi_hop`, `hier_summary`, `orchestrate`, `lexical_core`, `rerank` (HTTP client), small related unit tests.
 
 **Parent-agent contract:** `deku ask --json --audience agent` returns a **slim**
 envelope (`envelope: "slim"`): `status`, `tool`, `answer`, `reason`, `plan_id`,

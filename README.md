@@ -88,6 +88,7 @@ uv run python -m unittest discover -s tests
 | `DEKU_API_KEY` | Optional bearer | empty |
 | `DEKU_MODEL_DIR` | GGUF cache directory | `~/.cache/deku/models` |
 | `DEKU_HOST` / `DEKU_PORT` | Bind address for `deku-serve` | `127.0.0.1` / `8080` |
+| `DEKU_RERANK_URL` | MiniCPM-Reranker sidecar base | unset → lexical web rank |
 | `DEKU_AUDIENCE` | Default refuse wording (`human` / `agent`) | `human` |
 | `DEKU_JSON_FULL` | If `1`/`true`, `--json` includes nested `detail` | unset (slim) |
 
@@ -99,6 +100,7 @@ uv run python -m unittest discover -s tests
 | `mise run capability-smoke` | Live GGUF smokes (refuse / web / url / hop / git / dir) |
 | `mise run p7-probes` | Live P7+ composition probes → `evals/results/p7_composition_probes.json` |
 | `mise run serve` | ensure GGUF → `llama-server --jinja` |
+| `mise run serve-rerank` | MiniCPM-Reranker-Light sidecar (`uv sync --extra rerank` first) |
 | `mise run smoke` | one `llm.complete()` against `DEKU_URL` |
 
 Tests (no model required):
@@ -174,6 +176,7 @@ uv.lock         # reproducible installs
 | [docs/architecture.md](./docs/architecture.md) | Boundaries, HTTP contract, GGUF default |
 | [docs/roadmap.md](./docs/roadmap.md) | Phased build plan (0→4) |
 | [docs/decisions/0001-gguf-default-serve.md](./docs/decisions/0001-gguf-default-serve.md) | Why GGUF + llama-server |
+| [docs/decisions/0002-rerank-sidecar.md](./docs/decisions/0002-rerank-sidecar.md) | MiniCPM-Reranker HTTP sidecar |
 
 ## License
 
